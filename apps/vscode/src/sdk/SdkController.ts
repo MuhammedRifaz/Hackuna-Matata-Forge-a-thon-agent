@@ -110,7 +110,8 @@ import {
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
-import { readCurrentMessages } from "./session-host"
+import { readCurrentMessages, type SdkSessionHost } from "./session-host"
+import { TrueForgeSessionHost } from "../trueforge/TrueForgeSessionHost"
 import { buildDisabledWorkflowNames, expandSlashCommands } from "./slash-command-expansion"
 import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
@@ -134,8 +135,9 @@ function metadataNumber(metadata: SessionHistoryRecord["metadata"] | undefined, 
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
-function usesClineAccountAuth(providerId: string): boolean {
-	return getProviderAuthStorageId(providerId) === "cline"
+function usesClineAccountAuth(_providerId: string): boolean {
+	// TrueForge handles all LLM providers & authentication centrally on the TrueForge server.
+	return false
 }
 
 function metadataBoolean(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): boolean | undefined {
@@ -423,6 +425,7 @@ export class Controller {
 		})
 		this.sessions = new SdkSessionLifecycle({
 			mcpHub: this.mcpHub,
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			telemetry: this.sdkTelemetry.telemetry,
 			requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
 			askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
@@ -983,11 +986,14 @@ export class Controller {
 		throw new Error("Could not verify organization policy. Check your connection and try again.")
 	}
 
-	private createRemoteConfigAwareSessionHost(): Promise<VscodeSessionHost> {
-		return VscodeSessionHost.create({
-			mcpHub: this.mcpHub,
-			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
-			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
+	private createRemoteConfigAwareSessionHost(): Promise<SdkSessionHost> {
+		return TrueForgeSessionHost.create({
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
+			askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
+			editorExecutor: (input, cwd, context) => this.diffEdits.executeEditorTool(input, cwd, context),
+			applyPatchExecutor: (input, cwd, context) => this.diffEdits.executeApplyPatchTool(input, cwd, context),
+			readFileExecutor: createWorkspaceFileReadExecutor(() => this.getWorkspaceRoot()),
 		})
 	}
 
@@ -1819,7 +1825,7 @@ export class Controller {
 		const canRestoreWorkspace = getCheckpointRunCountForMessage(clineMessages, targetIndex) !== undefined
 		const sourceSessionId = activeSession?.sessionId ?? currentTask.taskId
 		let sdkMessages: SdkUserMessage[]
-		let tempHost: VscodeSessionHost | undefined
+		let tempHost: SdkSessionHost | undefined
 		const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
 		try {
 			sdkMessages = (await readCurrentMessages(sessionHost, sourceSessionId)) as SdkUserMessage[]
@@ -2056,7 +2062,7 @@ export class Controller {
 		}
 		// After a window reload the latest task is shown from history without a
 		// live session, so fall back to a temporary host for the comparison.
-		let tempHost: VscodeSessionHost | undefined
+		let tempHost: SdkSessionHost | undefined
 		const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
 		try {
 			if (!sessionHost.compareCheckpoint) {
@@ -2108,7 +2114,7 @@ export class Controller {
 		}
 		const userOrdinal = clineMessages.slice(0, targetIndex + 1).filter(isVisibleCheckpointUserMessage).length
 		const sessionId = activeSession?.sessionId ?? currentTask.taskId
-		let tempHost: VscodeSessionHost | undefined
+		let tempHost: SdkSessionHost | undefined
 		try {
 			const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
 			const [sessionRecord, sdkMessages] = await Promise.all([

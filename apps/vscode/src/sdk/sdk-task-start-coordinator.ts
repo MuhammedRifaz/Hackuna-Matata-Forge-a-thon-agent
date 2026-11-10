@@ -21,8 +21,9 @@ type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 
-function usesClineAccountAuth(providerId: string): boolean {
-	return getProviderAuthStorageId(providerId) === "cline"
+function usesClineAccountAuth(_providerId: string): boolean {
+	// TrueForge handles all LLM providers & authentication centrally on the TrueForge server.
+	return false
 }
 
 export interface SdkTaskStartCoordinatorOptions {

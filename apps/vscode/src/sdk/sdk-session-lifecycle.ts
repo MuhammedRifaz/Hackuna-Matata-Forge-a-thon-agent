@@ -16,6 +16,7 @@ import type { ActiveSession } from "./cline-session-factory"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import { buildToolPolicies } from "./sdk-tool-policies"
 import type { SdkSessionHost } from "./session-host"
+import { TrueForgeSessionHost } from "../trueforge/TrueForgeSessionHost"
 import { VscodeSessionHost } from "./vscode-session-host"
 
 type RequestToolApprovalHandler = NonNullable<Parameters<typeof VscodeSessionHost.create>[0]["requestToolApproval"]>
@@ -35,6 +36,8 @@ export interface SdkSessionLifecycleOptions {
 	/** Custom `read_files` executor (resolves relative paths against the workspace root). */
 	readFileExecutor?: ReadFileExecutorHandler
 	onSessionEvent: (event: CoreSessionEvent) => void
+	/** Returns the workspace root directory for TrueForge workspace tools. */
+	getWorkspaceRoot?: () => Promise<string>
 	/** Lazy factory for the VscodeTerminalManager (foreground terminal support). */
 	getTerminalManager?: () => VscodeTerminalManager
 	/** Registry of in-flight foreground executions for "Proceed While Running". */
@@ -476,20 +479,15 @@ export class SdkSessionLifecycle {
 			return this.sharedHost
 		}
 		if (!this.sharedHostPromise) {
-			// Host-lifetime dependencies only. Anything task/session-specific must be
-			// supplied to sdkHost.start(...), otherwise it can leak across reused sessions.
-			this.sharedHostPromise = VscodeSessionHost.create({
-				mcpHub: this.options.mcpHub,
+			// TrueForge is the sole agent execution harness and model runtime for all local VS Code sessions.
+			this.sharedHostPromise = TrueForgeSessionHost.create({
+				getWorkspaceRoot: this.options.getWorkspaceRoot ?? (async () => process.cwd()),
 				requestToolApproval: this.options.requestToolApproval,
 				askQuestion: this.options.askQuestion,
 				editorExecutor: this.options.editorExecutor,
 				applyPatchExecutor: this.options.applyPatchExecutor,
 				readFileExecutor: this.options.readFileExecutor,
 				getTerminalManager: this.options.getTerminalManager,
-				foregroundCommands: this.options.foregroundCommands,
-				beforeStartSession: this.options.beforeStartSession,
-				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
-				telemetry: this.options.telemetry,
 			})
 				.then((sdkHost) => {
 					this.ensureSharedHostSubscription(sdkHost)
