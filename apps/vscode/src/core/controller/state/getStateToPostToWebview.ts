@@ -64,8 +64,8 @@ export async function getStateToPostToWebview(controller: {
 	const vscodeTerminalExecutionMode = stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 	const defaultTerminalProfile = stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 	const isNewUser = stateManager.getGlobalStateKey("isNewUser")
-	// TrueForge handles provider configuration on localhost:8790, so allow immediate chat entry on fresh launches.
-	const welcomeViewCompleted = stateManager.getGlobalStateKey("welcomeViewCompleted") ?? true
+	// TrueForge handles provider configuration on localhost:8790, so allow immediate chat entry without Cline sign-in.
+	const welcomeViewCompleted = true
 
 	const mcpResponsesCollapsed = stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 	const favoritedModelIds = stateManager.getGlobalStateKey("favoritedModelIds")
