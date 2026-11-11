@@ -283,6 +283,35 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		let iterationCount = 0
 
 		try {
+			// Refresh the live TrueForge session's agent spec before each turn so model or config edits
+			// made in the TrueForge UI (e.g. switching from OpenRouter to Groq) take effect on Retry.
+			try {
+				const vscodeCfg = await readVscodeTrueForgeSettings()
+				const activeBaseUrl = vscodeCfg.baseUrl ?? this.options.baseUrl
+				const activeAgentName = vscodeCfg.agentName ?? this.options.agentName
+				if (activeBaseUrl !== this.client.baseUrl || activeAgentName !== this.client.agentName) {
+					this.client = new TrueForgeClient({
+						baseUrl: activeBaseUrl,
+						apiKey: this.options.apiKey,
+						agentName: activeAgentName,
+					})
+				}
+				const latest = await this.client.resolveAgentSpec({
+					cwd: session.cwd,
+					mode: session.mode,
+					requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
+				})
+				const latestModelId = latest.spec.model?.name ?? session.modelId
+				if (latestModelId !== session.modelId) {
+					await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
+					session.modelId = latestModelId
+					session.agentName = latest.name
+					Logger.log(`[TrueForgeSessionHost] Synced session ${session.tfSessionId} model -> ${latestModelId}`)
+				}
+			} catch (syncErr) {
+				Logger.warn(`[TrueForgeSessionHost] Pre-turn agent spec sync skipped: ${syncErr}`)
+			}
+
 			const contentParts: Array<{ type: "text"; text: string }> = []
 			if (input.prompt?.trim()) {
 				contentParts.push({ type: "text", text: input.prompt })

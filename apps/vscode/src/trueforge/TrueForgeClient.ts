@@ -203,6 +203,14 @@ export class TrueForgeClient {
 		return res.data
 	}
 
+	async updateSessionAgent(sessionId: string, agentSpec: TrueForgeApi.AgentSpec): Promise<void> {
+		await this.sdk.sessions.update(
+			sessionId,
+			{ agent: { spec: agentSpec } },
+			{ timeoutInSeconds: 10, maxRetries: 0 },
+		)
+	}
+
 	async streamTurn(
 		sessionId: string,
 		input: TrueForgeApi.TurnInputItem[],
