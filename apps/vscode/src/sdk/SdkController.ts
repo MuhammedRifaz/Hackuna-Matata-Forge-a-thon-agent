@@ -1574,7 +1574,12 @@ export class Controller {
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
 		this.messageTranslatorState.clearTurnOutcome()
-		return this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
+		const taskId = await this.taskStart.initTask(prompt, images, files, historyItem, taskSettings)
+		if (!taskId && this.turnStateTracker.currentPhase === "streaming") {
+			this.turnStateTracker.set("error")
+			await this.postStateToWebview()
+		}
+		return taskId
 	}
 
 	/**

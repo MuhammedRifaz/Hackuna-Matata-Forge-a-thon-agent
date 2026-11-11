@@ -336,8 +336,19 @@
 			]
 		},
 		"configuration": {
-			"title": "Cline",
-			"properties": {}
+			"title": "Cline (TrueForge Agent)",
+			"properties": {
+				"cline.trueforgeBaseUrl": {
+					"type": "string",
+					"default": "http://localhost:8790",
+					"description": "Base URL of the TrueForge agent server runtime."
+				},
+				"cline.trueforgeAgentName": {
+					"type": "string",
+					"default": "pacior",
+					"description": "Name of the registered TrueForge agent used for coding tasks."
+				}
+			}
 		}
 	},
 	"scripts": {

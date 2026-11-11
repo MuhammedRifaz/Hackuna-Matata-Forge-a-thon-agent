@@ -105,19 +105,37 @@ function normalizeApprovalToolName(rawName: string): string {
 	return rawName
 }
 
+async function readVscodeTrueForgeSettings(): Promise<{ baseUrl?: string; agentName?: string }> {
+	try {
+		const vscodeMod = await import("vscode")
+		const cfg = vscodeMod.workspace.getConfiguration("cline")
+		const baseUrl = cfg.get<string>("trueforgeBaseUrl")?.trim()
+		const agentName = cfg.get<string>("trueforgeAgentName")?.trim()
+		return {
+			...(baseUrl ? { baseUrl } : {}),
+			...(agentName ? { agentName } : {}),
+		}
+	} catch {
+		return {}
+	}
+}
+
 /**
  * Adapts Cline's SdkSessionHost interface directly to the TrueForge HTTP/SSE runtime.
  * Every turn, reasoning stream, tool call, approval pause, and workspace edit flows through
  * TrueForge (`localhost:8790` by default) + the extension-hosted WorkspaceMcpServer.
  */
 export class TrueForgeSessionHost implements SdkSessionHost {
-	readonly runtimeAddress: string
-	private readonly client: TrueForgeClient
+	private client: TrueForgeClient
 	private readonly mcpServer: WorkspaceMcpServer
 	private readonly listeners = new Set<(event: CoreSessionEvent) => void>()
 	private readonly sessions = new Map<string, ActiveTrueForgeSession>()
 	private readonly approvedToolCalls = new Map<string, Array<{ toolCallId: string; signal?: AbortSignal }>>()
 	private disposed = false
+
+	get runtimeAddress(): string {
+		return this.client.baseUrl
+	}
 
 	private constructor(private readonly options: TrueForgeSessionHostOptions) {
 		this.client = new TrueForgeClient({
@@ -125,7 +143,6 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			apiKey: options.apiKey,
 			agentName: options.agentName,
 		})
-		this.runtimeAddress = this.client.baseUrl
 		this.mcpServer = new WorkspaceMcpServer({
 			getWorkspaceRoot: options.getWorkspaceRoot,
 			editorExecutor: options.editorExecutor,
@@ -183,6 +200,18 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		const clineSessionId = normalized.config.sessionId?.trim() || createSessionId()
 		const cwd = normalized.config.cwd || (await this.options.getWorkspaceRoot())
 		const mode = normalized.config.mode === "plan" ? "plan" : "act"
+
+		// Refresh client settings dynamically so VS Code Settings changes (e.g. URL/agent overrides) take effect immediately.
+		const vscodeCfg = await readVscodeTrueForgeSettings()
+		const activeBaseUrl = vscodeCfg.baseUrl ?? this.options.baseUrl
+		const activeAgentName = vscodeCfg.agentName ?? this.options.agentName
+		if (activeBaseUrl !== this.client.baseUrl || activeAgentName !== this.client.agentName) {
+			this.client = new TrueForgeClient({
+				baseUrl: activeBaseUrl,
+				apiKey: this.options.apiKey,
+				agentName: activeAgentName,
+			})
+		}
 
 		try {
 			const mcpUrl = await this.mcpServer.ensureStarted()

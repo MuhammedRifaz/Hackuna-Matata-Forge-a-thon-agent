@@ -216,6 +216,12 @@ export class WorkspaceMcpServer {
 			res.end(JSON.stringify({ ok: true, service: "cline-vscode-workspace-mcp" }))
 			return
 		}
+		if (req.method === "GET" && reqUrl === "/mcp") {
+			// MCP Streamable HTTP spec: 405 indicates this endpoint handles POST JSON-RPC without an SSE server-push stream.
+			res.writeHead(405, { Allow: "POST, DELETE" })
+			res.end()
+			return
+		}
 		if (req.method === "DELETE" && reqUrl === "/mcp") {
 			res.writeHead(200)
 			res.end()
@@ -582,13 +588,26 @@ export class WorkspaceMcpServer {
 		workspaceRoot: string,
 		signal?: AbortSignal,
 	): Promise<string> {
-		const rawCommands = Array.isArray(args.commands)
-			? args.commands.map(String)
-			: typeof args.commands === "string"
-				? [args.commands]
-				: typeof args.command === "string"
-					? [args.command]
-					: []
+		let rawCommands: string[] = []
+		if (Array.isArray(args.commands)) {
+			rawCommands = args.commands.map(String)
+		} else if (typeof args.commands === "string") {
+			const trimmed = args.commands.trim()
+			if (trimmed.startsWith("[")) {
+				try {
+					const parsed = JSON.parse(trimmed)
+					if (Array.isArray(parsed)) {
+						rawCommands = parsed.map(String)
+					}
+				} catch {
+					rawCommands = [args.commands]
+				}
+			} else {
+				rawCommands = [args.commands]
+			}
+		} else if (typeof args.command === "string") {
+			rawCommands = [args.command]
+		}
 		if (rawCommands.length === 0) {
 			throw new Error("run_commands requires a non-empty 'commands' list")
 		}
