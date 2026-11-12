@@ -49,9 +49,9 @@ interface SettingsTab {
 const SETTINGS_TABS: SettingsTab[] = [
 	{
 		id: "api-config",
-		name: "API Configuration",
-		tooltipText: "API Configuration",
-		headerText: "API Configuration",
+		name: "TrueForge Config",
+		tooltipText: "TrueForge Model & Agent Configuration",
+		headerText: "TrueForge Configuration",
 		icon: SlidersHorizontal,
 	},
 	{

@@ -305,12 +305,12 @@ export class SdkTaskHistory {
 		}
 
 		this.cachedHistoryHostPromise = (async () => {
-			const { VscodeSessionHost } = await import("./vscode-session-host")
-			const historyHost = await VscodeSessionHost.create({
-				mcpHub: this.options.mcpHub,
+			const { TrueForgeSessionHost } = await import("../trueforge/TrueForgeSessionHost")
+			const historyHost = await TrueForgeSessionHost.create({
+				getWorkspaceRoot: async () => process.cwd(),
 			})
-			this.cachedHistoryHost = historyHost
-			return historyHost
+			this.cachedHistoryHost = historyHost as unknown as VscodeSessionHost
+			return this.cachedHistoryHost
 		})()
 
 		try {

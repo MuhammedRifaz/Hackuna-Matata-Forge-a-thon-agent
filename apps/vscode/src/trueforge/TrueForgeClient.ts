@@ -265,4 +265,32 @@ export class TrueForgeClient {
 			Logger.debug(`[TrueForgeClient] Cancel session ${sessionId} ignored error: ${err}`)
 		})
 	}
+
+	async listSessions(limit = 50): Promise<TrueForgeApi.Session[]> {
+		const page = await this.sdk.sessions.list({ limit }, { timeoutInSeconds: 10, maxRetries: 0 })
+		return page.data
+	}
+
+	async getSession(sessionId: string): Promise<TrueForgeApi.Session | undefined> {
+		try {
+			const res = await this.sdk.sessions.get(sessionId, { timeoutInSeconds: 10, maxRetries: 0 })
+			return res.data
+		} catch {
+			return undefined
+		}
+	}
+
+	async listSessionEvents(sessionId: string, limit = 100): Promise<Array<{ turnId: string; event: Record<string, unknown> }>> {
+		const page = await this.sdk.sessions.listEvents(sessionId, { limit }, { timeoutInSeconds: 10, maxRetries: 0 })
+		return page.data as unknown as Array<{ turnId: string; event: Record<string, unknown> }>
+	}
+
+	async deleteSession(sessionId: string): Promise<boolean> {
+		try {
+			await this.sdk.sessions.delete(sessionId, { timeoutInSeconds: 10, maxRetries: 0 })
+			return true
+		} catch {
+			return false
+		}
+	}
 }

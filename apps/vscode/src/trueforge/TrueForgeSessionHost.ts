@@ -753,49 +753,102 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 	async get(sessionId: string): Promise<SessionRecord | undefined> {
 		const s = this.sessions.get(sessionId)
-		if (!s) return undefined
-		return {
-			sessionId: s.clineSessionId,
-			source: "vscode",
-			status: s.status,
-			startedAt: s.startedAt,
-			updatedAt: s.updatedAt,
-			providerId: s.providerId,
-			modelId: s.modelId,
-			cwd: s.cwd,
-		} as unknown as SessionRecord
+		if (s) {
+			return {
+				sessionId: s.clineSessionId,
+				source: "vscode",
+				status: s.status,
+				startedAt: s.startedAt,
+				updatedAt: s.updatedAt,
+				providerId: s.providerId,
+				modelId: s.modelId,
+				cwd: s.cwd,
+			} as unknown as SessionRecord
+		}
+		const remote = await this.client.getSession(sessionId).catch(() => undefined)
+		if (!remote) return undefined
+		return mapTrueForgeSessionToRecord(remote) as unknown as SessionRecord
 	}
 
 	async list(limit?: number, options?: Omit<ClineCoreListHistoryOptions, "limit">): Promise<SessionHistoryRecord[]> {
 		return this.listHistory({ ...(options ?? {}), ...(limit ? { limit } : {}) })
 	}
 
-	async listHistory(_options?: ClineCoreListHistoryOptions): Promise<SessionHistoryRecord[]> {
-		return [...this.sessions.values()].map(
-			(s) =>
-				({
-					sessionId: s.clineSessionId,
-					source: "vscode",
-					status: s.status,
-					startedAt: s.startedAt,
-					updatedAt: s.updatedAt,
-					providerId: s.providerId,
-					modelId: s.modelId,
-					cwd: s.cwd,
-				}) as unknown as SessionHistoryRecord,
-		)
+	async listHistory(options?: ClineCoreListHistoryOptions): Promise<SessionHistoryRecord[]> {
+		const byId = new Map<string, SessionHistoryRecord>()
+
+		for (const s of this.sessions.values()) {
+			byId.set(s.tfSessionId, {
+				sessionId: s.clineSessionId,
+				source: "vscode",
+				status: s.status,
+				startedAt: s.startedAt,
+				updatedAt: s.updatedAt,
+				providerId: s.providerId,
+				modelId: s.modelId,
+				cwd: s.cwd,
+				metadata: {
+					title: `TrueForge (${s.agentName})`,
+					tokensIn: s.totalInputTokens,
+					tokensOut: s.totalOutputTokens,
+					totalCost: s.totalCost,
+				},
+			} as unknown as SessionHistoryRecord)
+		}
+
+		try {
+			const remoteSessions = await this.client.listSessions(options?.limit ?? 50)
+			for (const remote of remoteSessions) {
+				if (byId.has(remote.id)) continue
+				byId.set(remote.id, mapTrueForgeSessionToRecord(remote))
+			}
+		} catch (err) {
+			Logger.warn(`[TrueForgeSessionHost] Failed to sync TrueForge session history: ${err}`)
+		}
+
+		return [...byId.values()]
 	}
 
 	async delete(sessionId: string): Promise<boolean> {
-		return this.sessions.delete(sessionId)
+		const local = this.sessions.get(sessionId)
+		const tfId = local?.tfSessionId ?? sessionId
+		this.sessions.delete(sessionId)
+		return this.client.deleteSession(tfId)
 	}
 
-	async readMessages(_sessionId: string): Promise<SdkInitialMessages> {
-		return []
+	async readMessages(sessionId: string): Promise<SdkInitialMessages> {
+		const tfId = this.sessions.get(sessionId)?.tfSessionId ?? sessionId
+		try {
+			const events = await this.client.listSessionEvents(tfId, 200)
+			const ordered = [...events].reverse()
+			const messages: Array<{ role: "user" | "assistant"; content: unknown }> = []
+			for (const item of ordered) {
+				const ev = item.event as Record<string, unknown>
+				if (ev.type === "turn.created" && Array.isArray(ev.input)) {
+					for (const inp of ev.input as Array<Record<string, unknown>>) {
+						if (inp.type === "user.message" && Array.isArray(inp.content)) {
+							const text = (inp.content as Array<{ type?: string; text?: string }>)
+								.filter((p) => p.type === "text" && p.text)
+								.map((p) => p.text)
+								.join("\n")
+							if (text) {
+								messages.push({ role: "user", content: [{ type: "text", text }] })
+							}
+						}
+					}
+				} else if (ev.type === "model.message" && typeof ev.content === "string" && ev.content.trim()) {
+					messages.push({ role: "assistant", content: [{ type: "text", text: ev.content }] })
+				}
+			}
+			return messages as unknown as SdkInitialMessages
+		} catch (err) {
+			Logger.warn(`[TrueForgeSessionHost] Failed to read TrueForge session messages for ${tfId}: ${err}`)
+			return []
+		}
 	}
 
-	async readLiveMessages(_sessionId: string): Promise<SdkInitialMessages> {
-		return []
+	async readLiveMessages(sessionId: string): Promise<SdkInitialMessages> {
+		return this.readMessages(sessionId)
 	}
 
 	async restore(_input: RestoreInput): Promise<RestoreResult> {
@@ -827,6 +880,32 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		}
 		return Promise.resolve({ updated: false, deleted: false })
 	}
+}
+
+function mapTrueForgeSessionToRecord(remote: import("@truefoundry/trueforge-sdk").TrueForgeApi.Session): SessionHistoryRecord {
+	const modelName =
+		remote.agent.type === "inline"
+			? remote.agent.spec.model?.name
+			: remote.agent.type === "reference"
+				? remote.agent.name
+				: undefined
+	const createdAt = remote.createdAt ? new Date(remote.createdAt).toISOString() : new Date().toISOString()
+	const updatedAt = remote.updatedAt ? new Date(remote.updatedAt).toISOString() : createdAt
+	const title = remote.title?.trim() || `TrueForge Session (${remote.id.slice(0, 8)})`
+	return {
+		sessionId: remote.id,
+		source: "vscode",
+		status: "completed",
+		startedAt: createdAt,
+		updatedAt,
+		providerId: "trueforge",
+		modelId: modelName ?? "pacior",
+		prompt: title,
+		metadata: {
+			title,
+			modelId: modelName,
+		},
+	} as unknown as SessionHistoryRecord
 }
 
 function isApprovalManagedTool(toolName: string): boolean {

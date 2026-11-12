@@ -319,22 +319,11 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	return (
 		<div className="flex flex-col flex-1 w-full min-h-0 p-0 m-0">
-			<WhatsNewModal
-				onBannerAction={handleBannerAction}
-				onClose={handleCloseWhatsNewModal}
-				open={showWhatsNewModal}
-				version={version}
-				welcomeBanners={welcomeBanners}
-			/>
 			<div className="overflow-y-auto flex flex-col pb-2.5">
 				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
-				{!showWhatsNewModal && (
-					<>
-						<BannerCarousel banners={activeBanners} />
-						{cloudSessionsEnabled && <RunningCloudTasks />}
-						{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
-						{/* Quick launch worktree button */}
-						{isGitRepo && worktreesEnabled?.featureFlag && worktreesEnabled?.user && (
+				{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+				{/* Quick launch worktree button */}
+				{isGitRepo && worktreesEnabled?.featureFlag && worktreesEnabled?.user && (
 							<div className="flex flex-col items-center gap-3 mt-2 mb-4 px-5">
 								{/* TODO: Re-enable once worktree creation is stable
 								<Tooltip>
@@ -378,16 +367,9 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 									</Tooltip>
 								)}
 							</div>
-						)}
-					</>
 				)}
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
-			{cloudSessionsEnabled && isVisible && (
-				<div className="mt-auto pt-2">
-					<TaskTargetPanel />
-				</div>
-			)}
 
 			{/* Quick launch worktree modal */}
 			<CreateWorktreeModal

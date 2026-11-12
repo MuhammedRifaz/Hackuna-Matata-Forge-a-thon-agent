@@ -1,202 +1,357 @@
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { Mode } from "@shared/storage/types"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { CloudIcon, MonitorIcon, Sparkles } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useClineAuth } from "@/context/ClineAuthContext"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useClinePassPromo } from "@/hooks/useClinePassPromo"
-import { CloudServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { TargetButton } from "../../cloud/TaskTargetPanel"
-import { TabButton } from "../../mcp/configuration/McpConfigurationView"
-import ApiOptions from "../ApiOptions"
-import ClineModelPicker from "../ClineModelPicker"
+import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { CheckCircle2, ExternalLink, RefreshCw, Server, XCircle } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
 import Section from "../Section"
-import { syncModeConfigurations } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+
+interface TrueForgeModelItem {
+	name: string
+	model_id?: string
+	provider?: { name?: string }
+	properties?: {
+		context_length?: number
+		max_output_tokens?: number
+		reasoning_efforts?: string[]
+	}
+}
+
+interface TrueForgeAgentItem {
+	id: string
+	name: string
+	description?: string
+	manifest: {
+		model?: {
+			name?: string
+			params?: {
+				max_tokens?: number
+				reasoning_effort?: string
+			}
+		}
+		instructions?: string
+		config?: Record<string, unknown>
+	}
+}
 
 interface ApiConfigurationSectionProps {
 	renderSectionHeader?: (tabId: string) => JSX.Element | null
 	initialModelTab?: "recommended" | "free"
 }
 
-const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiConfigurationSectionProps) => {
-	const { cloudSessionsEnabled, cloudTaskTarget, currentCloudTask, clineMessages, mode } = useExtensionState()
-	const showCloud = !!cloudSessionsEnabled || !!currentCloudTask
-	// Open on the settings for where the chat view is about to run (or is running) a task.
-	const [target, setTarget] = useState<"local" | "cloud">(() =>
-		currentCloudTask || (cloudSessionsEnabled && clineMessages.length === 0 && cloudTaskTarget?.target === "cloud")
-			? "cloud"
-			: "local",
-	)
-	const isCloud = showCloud && target === "cloud"
-	// Held here so the Local pane's Plan/Act tab survives a visit to the Cloud pane.
-	const [currentTab, setCurrentTab] = useState<Mode>(mode)
+const DEFAULT_BASE_URL = "http://localhost:8790"
+const DEFAULT_AGENT_NAME = "pacior"
+
+const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectionProps) => {
+	const [baseUrl, setBaseUrl] = useState<string>(() => {
+		try {
+			return localStorage.getItem("trueforge.baseUrl") || DEFAULT_BASE_URL
+		} catch {
+			return DEFAULT_BASE_URL
+		}
+	})
+	const [agents, setAgents] = useState<TrueForgeAgentItem[]>([])
+	const [models, setModels] = useState<TrueForgeModelItem[]>([])
+	const [selectedAgentId, setSelectedAgentId] = useState<string>("")
+	const [selectedModel, setSelectedModel] = useState<string>("")
+	const [reasoningEffort, setReasoningEffort] = useState<string>("off")
+	const [maxTokens, setMaxTokens] = useState<string>("4096")
+	const [instructions, setInstructions] = useState<string>("")
+	const [connected, setConnected] = useState<boolean | null>(null)
+	const [loading, setLoading] = useState<boolean>(false)
+	const [saving, setSaving] = useState<boolean>(false)
+	const [statusMessage, setStatusMessage] = useState<string>("")
+	const [errorMessage, setErrorMessage] = useState<string>("")
+
+	const cleanBaseUrl = baseUrl.trim().replace(/\/+$/, "") || DEFAULT_BASE_URL
+
+	const applyAgentToForm = useCallback((agent: TrueForgeAgentItem) => {
+		setSelectedAgentId(agent.id)
+		const modelName = agent.manifest?.model?.name ?? ""
+		setSelectedModel(modelName)
+		setReasoningEffort(agent.manifest?.model?.params?.reasoning_effort ?? "off")
+		setMaxTokens(String(agent.manifest?.model?.params?.max_tokens ?? 4096))
+		setInstructions(agent.manifest?.instructions ?? "")
+		try {
+			localStorage.setItem("trueforge.agentName", agent.name)
+			if (modelName) {
+				localStorage.setItem("trueforge.activeModel", modelName)
+			}
+		} catch {
+			// ignore storage errors
+		}
+	}, [])
+
+	const loadFromTrueForge = useCallback(async () => {
+		setLoading(true)
+		setErrorMessage("")
+		setStatusMessage("")
+		try {
+			const [agentsRes, modelsRes] = await Promise.all([
+				fetch(`${cleanBaseUrl}/api/v1/agents?limit=50`),
+				fetch(`${cleanBaseUrl}/api/v1/models`),
+			])
+			if (!agentsRes.ok || !modelsRes.ok) {
+				throw new Error(`TrueForge returned HTTP ${!agentsRes.ok ? agentsRes.status : modelsRes.status}`)
+			}
+			const agentsJson = (await agentsRes.json()) as { data?: TrueForgeAgentItem[] }
+			const modelsJson = (await modelsRes.json()) as { data?: TrueForgeModelItem[] }
+			const loadedAgents = agentsJson.data ?? []
+			const loadedModels = modelsJson.data ?? []
+
+			setAgents(loadedAgents)
+			setModels(loadedModels)
+			setConnected(true)
+
+			const preferredName = (() => {
+				try {
+					return localStorage.getItem("trueforge.agentName") || DEFAULT_AGENT_NAME
+				} catch {
+					return DEFAULT_AGENT_NAME
+				}
+			})()
+			const target =
+				loadedAgents.find((a) => a.name.toLowerCase() === preferredName.toLowerCase()) ??
+				loadedAgents[0]
+			if (target) {
+				applyAgentToForm(target)
+			}
+		} catch (err) {
+			setConnected(false)
+			setErrorMessage(
+				err instanceof Error
+					? `Cannot reach TrueForge at ${cleanBaseUrl}: ${err.message}`
+					: `Cannot reach TrueForge at ${cleanBaseUrl}`,
+			)
+		} finally {
+			setLoading(false)
+		}
+	}, [applyAgentToForm, cleanBaseUrl])
+
+	useEffect(() => {
+		void loadFromTrueForge()
+	}, [loadFromTrueForge])
+
+	const handleAgentChange = (agentId: string) => {
+		const found = agents.find((a) => a.id === agentId)
+		if (found) {
+			applyAgentToForm(found)
+		}
+	}
+
+	const handleSaveSync = async () => {
+		const activeAgent = agents.find((a) => a.id === selectedAgentId)
+		if (!activeAgent) {
+			setErrorMessage("No TrueForge agent selected.")
+			return
+		}
+		setSaving(true)
+		setErrorMessage("")
+		setStatusMessage("")
+		try {
+			localStorage.setItem("trueforge.baseUrl", cleanBaseUrl)
+			localStorage.setItem("trueforge.agentName", activeAgent.name)
+			if (selectedModel) {
+				localStorage.setItem("trueforge.activeModel", selectedModel)
+			}
+
+			const parsedMaxTokens = Math.max(256, Number.parseInt(maxTokens, 10) || 4096)
+			const modelParams: Record<string, unknown> = {
+				max_tokens: parsedMaxTokens,
+			}
+			if (reasoningEffort && reasoningEffort !== "off") {
+				modelParams.reasoning_effort = reasoningEffort
+			}
+
+			const updatedManifest = {
+				...activeAgent.manifest,
+				model: {
+					name: selectedModel || activeAgent.manifest?.model?.name,
+					params: modelParams,
+				},
+				instructions,
+			}
+
+			const res = await fetch(`${cleanBaseUrl}/api/v1/agents/${activeAgent.id}`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ manifest: updatedManifest }),
+			})
+			if (!res.ok) {
+				const errText = await res.text()
+				throw new Error(`HTTP ${res.status}: ${errText}`)
+			}
+			setStatusMessage(`Synced "${activeAgent.name}" (${selectedModel}) to TrueForge!`)
+			await loadFromTrueForge()
+		} catch (err) {
+			setErrorMessage(err instanceof Error ? err.message : "Failed to sync settings to TrueForge")
+		} finally {
+			setSaving(false)
+		}
+	}
+
+	const activeModelMeta = models.find((m) => m.name === selectedModel)
 
 	return (
 		<div>
 			{renderSectionHeader?.("api-config")}
 			<Section>
-				{showCloud && (
-					<div
-						aria-label="Model settings for"
-						className="inline-flex self-start rounded-lg border border-input-foreground/20 p-1 mb-1"
-						role="radiogroup">
-						<TargetButton
-							active={!isCloud}
-							icon={<MonitorIcon className="size-3" />}
-							label="Local"
-							onClick={() => setTarget("local")}
-						/>
-						<TargetButton
-							active={isCloud}
-							icon={<CloudIcon className="size-3" />}
-							label="Cloud"
-							onClick={() => setTarget("cloud")}
-						/>
-					</div>
-				)}
-				{isCloud ? (
-					<CloudModelSettings />
-				) : (
-					<LocalModelSettings currentTab={currentTab} initialModelTab={initialModelTab} setCurrentTab={setCurrentTab} />
-				)}
-			</Section>
-		</div>
-	)
-}
-
-const LocalModelSettings = ({
-	initialModelTab,
-	currentTab,
-	setCurrentTab,
-}: Pick<ApiConfigurationSectionProps, "initialModelTab"> & { currentTab: Mode; setCurrentTab: (tab: Mode) => void }) => {
-	const { planActSeparateModelsSetting, mode, apiConfiguration } = useExtensionState()
-	const { handleFieldsChange } = useApiConfigurationHandlers()
-	return (
-		<>
-			{/* Tabs container */}
-			{planActSeparateModelsSetting ? (
-				<div className="rounded-md mb-5">
-					<div className="flex gap-px mb-[10px] -mt-2 border-0 border-b border-solid border-(--vscode-panel-border)">
-						<TabButton
-							disabled={currentTab === "plan"}
-							isActive={currentTab === "plan"}
-							onClick={() => setCurrentTab("plan")}
-							style={{
-								opacity: 1,
-								cursor: "pointer",
-							}}>
-							Plan Mode
-						</TabButton>
-						<TabButton
-							disabled={currentTab === "act"}
-							isActive={currentTab === "act"}
-							onClick={() => setCurrentTab("act")}
-							style={{
-								opacity: 1,
-								cursor: "pointer",
-							}}>
-							Act Mode
-						</TabButton>
+				<div className="flex flex-col gap-4">
+					{/* Connection Status Header */}
+					<div className="flex items-center justify-between gap-2 p-2.5 rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-editorWidget-background)]">
+						<div className="flex items-center gap-2 text-xs">
+							<Server className="w-4 h-4 shrink-0" />
+							<span className="font-medium">TrueForge Runtime</span>
+							{connected === true && (
+								<span className="inline-flex items-center gap-1 text-[var(--vscode-testing-iconPassed)]">
+									<CheckCircle2 className="w-3.5 h-3.5" />
+									Connected
+								</span>
+							)}
+							{connected === false && (
+								<span className="inline-flex items-center gap-1 text-[var(--vscode-errorForeground)]">
+									<XCircle className="w-3.5 h-3.5" />
+									Disconnected
+								</span>
+							)}
+						</div>
+						<div className="flex items-center gap-2">
+							<VSCodeButton appearance="secondary" disabled={loading} onClick={() => void loadFromTrueForge()}>
+								<span className="inline-flex items-center gap-1 text-xs">
+									<RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+									Refresh
+								</span>
+							</VSCodeButton>
+							<a
+								className="inline-flex items-center gap-1 text-xs text-[var(--vscode-textLink-foreground)] hover:underline"
+								href={cleanBaseUrl}
+								rel="noreferrer"
+								target="_blank">
+								Dashboard <ExternalLink className="w-3 h-3" />
+							</a>
+						</div>
 					</div>
 
-					{/* Content container */}
-					<div className="-mb-3">
-						<ApiOptions currentMode={currentTab} initialModelTab={initialModelTab} showModelOptions={true} />
+					{/* Server URL */}
+					<div className="flex flex-col gap-1">
+						<label className="text-xs font-medium" htmlFor="tf-base-url">
+							TrueForge Server URL
+						</label>
+						<VSCodeTextField
+							id="tf-base-url"
+							onInput={(e: any) => setBaseUrl((e.target as HTMLInputElement).value)}
+							placeholder="http://localhost:8790"
+							value={baseUrl}
+						/>
+					</div>
+
+					{/* Agent Selector */}
+					<div className="flex flex-col gap-1">
+						<label className="text-xs font-medium" htmlFor="tf-agent-select">
+							Synced Agent
+						</label>
+						<VSCodeDropdown
+							id="tf-agent-select"
+							onChange={(e: any) => handleAgentChange((e.target as HTMLSelectElement).value)}
+							value={selectedAgentId}>
+							{agents.length === 0 ? (
+								<VSCodeOption value="">No agents found</VSCodeOption>
+							) : (
+								agents.map((agent) => (
+									<VSCodeOption key={agent.id} value={agent.id}>
+										{agent.name}
+									</VSCodeOption>
+								))
+							)}
+						</VSCodeDropdown>
+					</div>
+
+					{/* Model Provider & Model Selector */}
+					<div className="flex flex-col gap-1">
+						<label className="text-xs font-medium" htmlFor="tf-model-select">
+							TrueForge Model (Provider / Model)
+						</label>
+						<VSCodeDropdown
+							id="tf-model-select"
+							onChange={(e: any) => setSelectedModel((e.target as HTMLSelectElement).value)}
+							value={selectedModel}>
+							{models.length === 0 ? (
+								<VSCodeOption value={selectedModel}>{selectedModel || "No models configured"}</VSCodeOption>
+							) : (
+								models.map((m) => (
+									<VSCodeOption key={m.name} value={m.name}>
+										{m.name}
+									</VSCodeOption>
+								))
+							)}
+						</VSCodeDropdown>
+						{activeModelMeta && (
+							<div className="text-[11px] text-[var(--vscode-descriptionForeground)]">
+								Provider: {activeModelMeta.provider?.name ?? "configured"} · Context:{" "}
+								{activeModelMeta.properties?.context_length?.toLocaleString() ?? "128,000"} tokens
+							</div>
+						)}
+					</div>
+
+					{/* Reasoning Effort & Max Tokens */}
+					<div className="grid grid-cols-2 gap-3">
+						<div className="flex flex-col gap-1">
+							<label className="text-xs font-medium" htmlFor="tf-reasoning">
+								Reasoning Effort
+							</label>
+							<VSCodeDropdown
+								id="tf-reasoning"
+								onChange={(e: any) => setReasoningEffort((e.target as HTMLSelectElement).value)}
+								value={reasoningEffort}>
+								<VSCodeOption value="off">Off (disabled)</VSCodeOption>
+								<VSCodeOption value="minimal">Minimal</VSCodeOption>
+								<VSCodeOption value="low">Low</VSCodeOption>
+								<VSCodeOption value="medium">Medium</VSCodeOption>
+								<VSCodeOption value="high">High</VSCodeOption>
+								<VSCodeOption value="max">Max</VSCodeOption>
+							</VSCodeDropdown>
+						</div>
+						<div className="flex flex-col gap-1">
+							<label className="text-xs font-medium" htmlFor="tf-max-tokens">
+								Max Output Tokens
+							</label>
+							<VSCodeTextField
+								id="tf-max-tokens"
+								onInput={(e: any) => setMaxTokens((e.target as HTMLInputElement).value)}
+								value={maxTokens}
+							/>
+						</div>
+					</div>
+
+					{/* System Instructions */}
+					<div className="flex flex-col gap-1">
+						<label className="text-xs font-medium" htmlFor="tf-instructions">
+							Agent Instructions (Synced with TrueForge)
+						</label>
+						<VSCodeTextArea
+							id="tf-instructions"
+							onInput={(e: any) => setInstructions((e.target as HTMLTextAreaElement).value)}
+							rows={5}
+							value={instructions}
+						/>
+					</div>
+
+					{errorMessage && (
+						<div className="text-xs text-[var(--vscode-errorForeground)] p-2 rounded border border-[var(--vscode-errorForeground)]/30">
+							{errorMessage}
+						</div>
+					)}
+					{statusMessage && (
+						<div className="text-xs text-[var(--vscode-testing-iconPassed)] p-2 rounded border border-[var(--vscode-testing-iconPassed)]/30">
+							{statusMessage}
+						</div>
+					)}
+
+					<div className="flex items-center justify-end gap-2">
+						<VSCodeButton disabled={saving || !selectedAgentId} onClick={() => void handleSaveSync()}>
+							{saving ? "Syncing..." : "Save & Sync to TrueForge"}
+						</VSCodeButton>
 					</div>
 				</div>
-			) : (
-				<ApiOptions currentMode={mode} initialModelTab={initialModelTab} showModelOptions={true} />
-			)}
-
-			<div className="mb-[5px]">
-				<VSCodeCheckbox
-					checked={planActSeparateModelsSetting}
-					className="mb-[5px]"
-					onChange={async (e: any) => {
-						const checked = e.target.checked === true
-						try {
-							// If unchecking the toggle, wait a bit for state to update, then sync configurations
-							if (!checked) {
-								await syncModeConfigurations(apiConfiguration, currentTab, handleFieldsChange)
-							}
-							await StateServiceClient.updateSettings(
-								UpdateSettingsRequest.create({
-									planActSeparateModelsSetting: checked,
-								}),
-							)
-						} catch (error) {
-							console.error("Failed to update separate models setting:", error)
-						}
-					}}>
-					Use different models for Plan and Act modes
-				</VSCodeCheckbox>
-				<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-					Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
-					helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.
-				</p>
-			</div>
-		</>
-	)
-}
-
-const CloudModelSettings = () => {
-	const { nextCloudModelId, cloudModelId, currentCloudTask, clinePassSubscribed } = useExtensionState()
-	const { activeOrganization } = useClineAuth()
-	const { isClinePassEnabled, openSubscribePage } = useClinePassPromo()
-	const includeClinePass = isClinePassEnabled && !activeOrganization
-	const runningModelId = currentCloudTask ? cloudModelId : undefined
-
-	// The user may have followed the Subscribe link and come back; re-ask for the plan.
-	useEffect(() => {
-		if (includeClinePass) {
-			CloudServiceClient.refreshClinePassSubscription(EmptyRequest.create({})).catch((error) =>
-				console.error("Failed to refresh ClinePass subscription:", error),
-			)
-		}
-	}, [includeClinePass])
-
-	return (
-		<>
-			<p className="text-xs m-0 text-(--vscode-descriptionForeground)">
-				Cloud tasks run in an isolated sandbox on a Cline model. Usage-Billing models use Cline credits
-				{includeClinePass ? ", ClinePass models use your subscription," : ""} and ClineFree models are free with limited
-				usage. This model is separate from your local Plan and Act models.
-			</p>
-			{runningModelId && (
-				<p className="text-xs m-0 text-(--vscode-descriptionForeground)">
-					The current cloud task runs on <code>{runningModelId}</code>. A model change applies to the next cloud task.
-				</p>
-			)}
-			<ClineModelPicker
-				cloudSelection={{
-					includeClinePass,
-					clinePassNotice: clinePassSubscribed === false && (
-						<div className="flex items-start gap-2 rounded-sm bg-[var(--vscode-textBlockQuote-background)] px-2.5 py-2 mb-1.5">
-							<Sparkles className="size-3.5 shrink-0 mt-0.5 text-[var(--vscode-charts-yellow)]" />
-							<div className="grow text-xs text-description">
-								These models need a <span className="font-semibold text-foreground">ClinePass</span> subscription,
-								a low-cost monthly plan for the latest open-weights models.{" "}
-								<button
-									className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--vscode-textLink-foreground)] underline hover:text-[var(--vscode-textLink-activeForeground,var(--vscode-textLink-foreground))]"
-									onClick={openSubscribePage}
-									type="button">
-									Subscribe
-								</button>
-							</div>
-						</div>
-					),
-					modelId: nextCloudModelId ?? "",
-					onChange: (modelId) =>
-						CloudServiceClient.setCloudModel(StringRequest.create({ value: modelId })).catch((error) =>
-							console.error("Failed to save cloud model:", error),
-						),
-				}}
-				currentMode="act"
-			/>
-		</>
+			</Section>
+		</div>
 	)
 }
 

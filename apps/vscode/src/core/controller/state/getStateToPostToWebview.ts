@@ -92,8 +92,7 @@ export async function getStateToPostToWebview(controller: {
 		.sort((a: any, b: any) => b.ts - a.ts)
 		.slice(0, 100)
 
-	const latestAnnouncementId = getLatestAnnouncementId()
-	const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
+	const shouldShowAnnouncement = false
 	const platform = process.platform as Platform
 	const distinctId = getDistinctId()
 	const version = ExtensionRegistryInfo.version
@@ -101,8 +100,8 @@ export async function getStateToPostToWebview(controller: {
 	const environment = clineConfig.environment
 	const hostPlatform = HostRegistryInfo.get()?.platform
 	const hostName = hostPlatform && hostPlatform !== "unknown" ? hostPlatform : undefined
-	const banners = BannerService.get().getActiveBanners() ?? []
-	const welcomeBanners = BannerService.get().getWelcomeBanners() ?? []
+	const banners: unknown[] = []
+	const welcomeBanners: unknown[] = []
 
 	// Check OpenAI Codex authentication status
 	let openAiCodexIsAuthenticated = false
