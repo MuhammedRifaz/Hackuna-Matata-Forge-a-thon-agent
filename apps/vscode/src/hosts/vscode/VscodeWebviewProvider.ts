@@ -184,6 +184,43 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				}
 				break
 			}
+			case "trueforge_proxy": {
+				const req = message.trueforge_proxy
+				if (!req) break
+				try {
+					const parsed = new URL(req.url)
+					if (parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
+						throw new Error("TrueForge proxy only allows localhost or 127.0.0.1")
+					}
+					const res = await fetch(req.url, {
+						method: req.method || "GET",
+						headers: req.body ? { "Content-Type": "application/json" } : undefined,
+						body: req.body,
+					})
+					const body = await res.text()
+					await postMessageToWebview({
+						type: "trueforge_proxy_response",
+						trueforge_proxy_response: {
+							request_id: req.request_id,
+							ok: res.ok,
+							status: res.status,
+							body,
+						},
+					})
+				} catch (error) {
+					await postMessageToWebview({
+						type: "trueforge_proxy_response",
+						trueforge_proxy_response: {
+							request_id: req.request_id,
+							ok: false,
+							status: 0,
+							body: "",
+							error: error instanceof Error ? error.message : String(error),
+						},
+					})
+				}
+				break
+			}
 			default: {
 				Logger.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
 			}

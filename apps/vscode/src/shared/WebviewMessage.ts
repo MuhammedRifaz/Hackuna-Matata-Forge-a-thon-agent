@@ -1,7 +1,13 @@
 export interface WebviewMessage {
-	type: "grpc_request" | "grpc_request_cancel"
+	type: "grpc_request" | "grpc_request_cancel" | "trueforge_proxy"
 	grpc_request?: GrpcRequest
 	grpc_request_cancel?: GrpcCancel
+	trueforge_proxy?: {
+		request_id: string
+		url: string
+		method?: string
+		body?: string
+	}
 }
 
 export type GrpcRequest = {

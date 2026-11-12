@@ -1,7 +1,47 @@
 import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { CheckCircle2, ExternalLink, RefreshCw, Server, XCircle } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
+import { v4 as uuidv4 } from "uuid"
+import { PLATFORM_CONFIG } from "../../../config/platform.config"
 import Section from "../Section"
+
+async function trueforgeProxyFetch(
+	url: string,
+	init?: { method?: string; body?: string },
+): Promise<{ ok: boolean; status: number; text: string }> {
+	return new Promise((resolve, reject) => {
+		const requestId = uuidv4()
+		const timer = window.setTimeout(() => {
+			window.removeEventListener("message", handleResponse)
+			reject(new Error(`Request timed out: ${url}`))
+		}, 10_000)
+
+		const handleResponse = (event: MessageEvent) => {
+			const msg = event.data
+			if (msg?.type === "trueforge_proxy_response" && msg.trueforge_proxy_response?.request_id === requestId) {
+				window.clearTimeout(timer)
+				window.removeEventListener("message", handleResponse)
+				const res = msg.trueforge_proxy_response
+				if (res.error) {
+					reject(new Error(res.error))
+				} else {
+					resolve({ ok: Boolean(res.ok), status: Number(res.status ?? 0), text: String(res.body ?? "") })
+				}
+			}
+		}
+
+		window.addEventListener("message", handleResponse)
+		PLATFORM_CONFIG.postMessage({
+			type: "trueforge_proxy",
+			trueforge_proxy: {
+				request_id: requestId,
+				url,
+				method: init?.method ?? "GET",
+				body: init?.body,
+			},
+		})
+	})
+}
 
 interface TrueForgeModelItem {
 	name: string
@@ -85,14 +125,14 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 		setStatusMessage("")
 		try {
 			const [agentsRes, modelsRes] = await Promise.all([
-				fetch(`${cleanBaseUrl}/api/v1/agents?limit=50`),
-				fetch(`${cleanBaseUrl}/api/v1/models`),
+				trueforgeProxyFetch(`${cleanBaseUrl}/api/v1/agents?limit=50`),
+				trueforgeProxyFetch(`${cleanBaseUrl}/api/v1/models`),
 			])
 			if (!agentsRes.ok || !modelsRes.ok) {
 				throw new Error(`TrueForge returned HTTP ${!agentsRes.ok ? agentsRes.status : modelsRes.status}`)
 			}
-			const agentsJson = (await agentsRes.json()) as { data?: TrueForgeAgentItem[] }
-			const modelsJson = (await modelsRes.json()) as { data?: TrueForgeModelItem[] }
+			const agentsJson = JSON.parse(agentsRes.text) as { data?: TrueForgeAgentItem[] }
+			const modelsJson = JSON.parse(modelsRes.text) as { data?: TrueForgeModelItem[] }
 			const loadedAgents = agentsJson.data ?? []
 			const loadedModels = modelsJson.data ?? []
 
@@ -169,14 +209,12 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 				instructions,
 			}
 
-			const res = await fetch(`${cleanBaseUrl}/api/v1/agents/${activeAgent.id}`, {
+			const res = await trueforgeProxyFetch(`${cleanBaseUrl}/api/v1/agents/${activeAgent.id}`, {
 				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ manifest: updatedManifest }),
 			})
 			if (!res.ok) {
-				const errText = await res.text()
-				throw new Error(`HTTP ${res.status}: ${errText}`)
+				throw new Error(`HTTP ${res.status}: ${res.text}`)
 			}
 			setStatusMessage(`Synced "${activeAgent.name}" (${selectedModel}) to TrueForge!`)
 			await loadFromTrueForge()
@@ -195,36 +233,36 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 			<Section>
 				<div className="flex flex-col gap-4">
 					{/* Connection Status Header */}
-					<div className="flex items-center justify-between gap-2 p-2.5 rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-editorWidget-background)]">
-						<div className="flex items-center gap-2 text-xs">
+					<div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-editorWidget-background)]">
+						<div className="flex flex-wrap items-center gap-1.5 text-xs min-w-0">
 							<Server className="w-4 h-4 shrink-0" />
-							<span className="font-medium">TrueForge Runtime</span>
+							<span className="font-medium whitespace-nowrap">TrueForge Runtime</span>
 							{connected === true && (
-								<span className="inline-flex items-center gap-1 text-[var(--vscode-testing-iconPassed)]">
-									<CheckCircle2 className="w-3.5 h-3.5" />
+								<span className="inline-flex items-center gap-1 text-[var(--vscode-testing-iconPassed)] whitespace-nowrap">
+									<CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
 									Connected
 								</span>
 							)}
 							{connected === false && (
-								<span className="inline-flex items-center gap-1 text-[var(--vscode-errorForeground)]">
-									<XCircle className="w-3.5 h-3.5" />
+								<span className="inline-flex items-center gap-1 text-[var(--vscode-errorForeground)] whitespace-nowrap">
+									<XCircle className="w-3.5 h-3.5 shrink-0" />
 									Disconnected
 								</span>
 							)}
 						</div>
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-3 shrink-0">
 							<VSCodeButton appearance="secondary" disabled={loading} onClick={() => void loadFromTrueForge()}>
-								<span className="inline-flex items-center gap-1 text-xs">
+								<span className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
 									<RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
 									Refresh
 								</span>
 							</VSCodeButton>
 							<a
-								className="inline-flex items-center gap-1 text-xs text-[var(--vscode-textLink-foreground)] hover:underline"
+								className="inline-flex items-center gap-1 text-xs text-[var(--vscode-textLink-foreground)] hover:underline whitespace-nowrap shrink-0"
 								href={cleanBaseUrl}
 								rel="noreferrer"
 								target="_blank">
-								Dashboard <ExternalLink className="w-3 h-3" />
+								Dashboard <ExternalLink className="w-3 h-3 shrink-0" />
 							</a>
 						</div>
 					</div>
@@ -344,7 +382,7 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 						</div>
 					)}
 
-					<div className="flex items-center justify-end gap-2">
+					<div className="flex items-center justify-end gap-2 pb-6">
 						<VSCodeButton disabled={saving || !selectedAgentId} onClick={() => void handleSaveSync()}>
 							{saving ? "Syncing..." : "Save & Sync to TrueForge"}
 						</VSCodeButton>
