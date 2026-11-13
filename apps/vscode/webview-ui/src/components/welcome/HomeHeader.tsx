@@ -21,9 +21,9 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 
 	return (
 		<div className="flex flex-col items-center mb-5 px-3">
-			<div className="my-6 flex flex-col items-center gap-3">
-				<PaciorIcon className="w-16 h-16 shadow-lg shadow-[#012E47]/30 transition-transform duration-200 hover:scale-105" variant="badge" />
-				<PaciorWordmark className="h-7 w-auto max-w-[210px] transition-opacity duration-200" showLabs={true} />
+			<div className="my-6 flex flex-col items-center gap-4">
+				<PaciorIcon className="w-24 h-24 transition-transform duration-200 hover:scale-105" />
+				<PaciorWordmark className="h-8 w-auto max-w-[240px] transition-opacity duration-200" showLabs={true} />
 			</div>
 			<div className="text-center flex items-center justify-center px-4">
 				<h1 className="m-0 font-bold text-foreground text-base tracking-tight">{headingText}</h1>

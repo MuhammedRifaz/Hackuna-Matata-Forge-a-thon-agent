@@ -40,11 +40,11 @@ const WelcomeView = memo(() => {
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col">
 			<div className="h-full px-5 overflow-auto flex flex-col gap-2.5">
-				<div className="flex flex-col items-center gap-2.5 my-4">
-					<PaciorIcon className="w-16 h-16 shadow-lg shadow-[#012E47]/30" variant="badge" />
-					<PaciorWordmark className="h-6 w-auto max-w-[190px]" showLabs={true} />
+				<div className="flex flex-col items-center gap-3 my-4">
+					<PaciorIcon className="w-20 h-20" />
+					<PaciorWordmark className="h-7 w-auto max-w-[220px]" showLabs={true} />
 				</div>
-				<h2 className="text-lg font-semibold text-center">Hi, I'm Pacior</h2>
+				<h2 className="text-lg font-semibold text-center">Hi, I'm Pacior Code</h2>
 				<p>
 					I can do all kinds of tasks thanks to breakthroughs in{" "}
 					<VSCodeLink className="inline" href="https://www.anthropic.com/claude/sonnet">

@@ -13,8 +13,8 @@ export const AccountWelcomeView = () => {
 	return (
 		<div className="flex flex-col items-center gap-2.5">
 			<div className="flex flex-col items-center gap-2 mb-3">
-				<PaciorIcon className="w-16 h-16 shadow-lg shadow-[#012E47]/30" variant="badge" />
-				<PaciorWordmark className="h-6 w-auto max-w-[190px]" showLabs={true} />
+				<PaciorIcon className="w-20 h-20" />
+				<PaciorWordmark className="h-7 w-auto max-w-[220px]" showLabs={true} />
 			</div>
 
 			<p>

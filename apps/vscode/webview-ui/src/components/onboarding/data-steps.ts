@@ -14,11 +14,11 @@ type UserTypeSelection = {
 
 export const STEP_CONFIG = {
 	0: {
-		title: "How will you use Pacior?",
+		title: "How will you use Pacior Code?",
 		description: "Select an option below to get started.",
 		buttons: [
 			{ text: "Continue", action: "next", variant: "default" },
-			{ text: "Login to Pacior", action: "signin", variant: "secondary" },
+			{ text: "Login to Pacior Code", action: "signin", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.CLINE_PASS]: {

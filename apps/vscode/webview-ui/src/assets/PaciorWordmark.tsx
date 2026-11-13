@@ -22,9 +22,11 @@ export const PaciorWordmark = ({
 	className = "h-8 w-auto",
 	...props
 }: PaciorWordmarkProps) => {
-	// If showing labs: x: 28 to 342 (width ~314), y: 145 to 216 (height ~71)
-	// If only Pacior: x: 28 to 210 (width ~182), y: 145 to 216 (height ~71)
-	const viewBox = showLabs ? "28 145 315 72" : "28 145 182 72"
+	// Full bounds with generous padding so letter 'p' on the far left is NEVER cut off:
+	// 'p' starts at x ~ 18, descender ends at y ~ 215.3
+	// 'labs' ends at x ~ 340.8
+	// dots of 'i' start at y ~ 145.6
+	const viewBox = showLabs ? "10 140 336 78" : "10 140 202 78"
 
 	return (
 		<svg
@@ -42,7 +44,7 @@ export const PaciorWordmark = ({
 					d="M39.176 193.644v8.462c0 .085-.068.153-.152.153h-8.661c-.084 0-.152-.069-.152-.153v-8.462c0-.085.068-.153.152-.153h8.661c.084 0 .152.069.152.153z"
 					fill={accentColor}
 				/>
-				{/* Letter 'P' body */}
+				{/* Letter 'P' body (full curves and descender, starting at x ~ 18) */}
 				<path
 					className={textColor ? undefined : "text-foreground fill-current"}
 					d="M58.596 184.126c0 5.988-3.088 11.293-7.904 14.612-2.617 1.86-5.78 3.09-9.249 3.485-.097.011-.185-.068-.185-.166v-8.624c.453-.124.907-.248 1.331-.434 3.74-1.458 6.346-4.902 6.346-8.873 0-5.336-4.646-9.68-10.397-9.68-5.751 0-10.397 4.343-10.397 9.68v30.118c0 .089-.071.161-.159.161h-8.633c-.088 0-.159-.072-.159-.161v-30.118c0-.248 0-.528.057-.776.397-9.773 9.037-17.529 19.632-17.529 10.517 0 19.328 8.19 19.328 18.304z"
@@ -124,4 +126,3 @@ export const PaciorWordmark = ({
 }
 
 export default PaciorWordmark
-

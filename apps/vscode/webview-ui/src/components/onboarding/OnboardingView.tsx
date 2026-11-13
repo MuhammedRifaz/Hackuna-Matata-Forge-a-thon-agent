@@ -620,9 +620,9 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col w-full">
 			<div className="h-full px-5 xs:mx-10 overflow-auto flex flex-col gap-3 items-center justify-center">
-				<div className="flex flex-col items-center gap-2.5 my-2 flex-shrink-0">
-					<PaciorIcon className="w-16 h-16 shadow-lg shadow-[#012E47]/30" variant="badge" />
-					<PaciorWordmark className="h-6 w-auto max-w-[190px]" showLabs={true} />
+				<div className="flex flex-col items-center gap-3 my-2 flex-shrink-0">
+					<PaciorIcon className="w-20 h-20" />
+					<PaciorWordmark className="h-7 w-auto max-w-[220px]" showLabs={true} />
 				</div>
 				<h2 className="text-lg font-semibold p-0 flex-shrink-0 text-center">{stepDisplayInfo.title}</h2>
 				{stepNumber === 2 && (

@@ -235,10 +235,10 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 			<Section>
 				<div className="flex flex-col gap-4">
 					{/* Pacior Brand & Runtime Status Header */}
-					<div className="flex flex-col gap-2.5 p-3 rounded-lg border border-[var(--vscode-panel-border)] bg-[#012E47]/15">
+					<div className="flex flex-col gap-2.5 p-3 rounded-lg border border-[var(--vscode-panel-border)] bg-[var(--vscode-editorWidget-background)]">
 						<div className="flex items-center justify-between gap-2">
 							<div className="flex items-center gap-2">
-								<PaciorIcon className="w-7 h-7 shrink-0" variant="badge" />
+								<PaciorIcon className="w-7 h-7 shrink-0" />
 								<PaciorWordmark className="h-5 w-auto max-w-[130px]" showLabs={true} />
 							</div>
 							<div className="flex items-center gap-2 shrink-0">

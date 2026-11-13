@@ -61,12 +61,12 @@ export const Navbar = ({ startNewTask }: NavbarProps) => {
 			id="pacior-navbar-container">
 			{/* Brand mark on left with quick return to chat */}
 			<button
-				aria-label="Pacior Home"
-				className="flex items-center gap-1.5 bg-transparent border-0 p-0 m-0 cursor-pointer text-left focus:outline-none transition-opacity hover:opacity-85"
+				aria-label="Pacior Code Home"
+				className="flex items-center gap-2 bg-transparent border-0 p-0 m-0 cursor-pointer text-left focus:outline-none transition-opacity hover:opacity-85"
 				onClick={() => navigateToChat()}
 				type="button">
-				<PaciorIcon className="w-5 h-5 shrink-0" variant="badge" />
-				<PaciorWordmark className="h-3.5 w-auto max-w-[95px] shrink-0" showLabs={true} />
+				<PaciorIcon className="w-5 h-5 shrink-0" />
+				<span className="text-xs font-bold text-foreground tracking-tight">Pacior Code</span>
 			</button>
 
 			{/* Actions on right */}
