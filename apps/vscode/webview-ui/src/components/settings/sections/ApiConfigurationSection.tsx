@@ -2,6 +2,8 @@ import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeTextArea, VSCodeTextF
 import { CheckCircle2, ExternalLink, RefreshCw, Server, XCircle } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
+import PaciorIcon from "../../../assets/PaciorIcon"
+import PaciorWordmark from "../../../assets/PaciorWordmark"
 import { PLATFORM_CONFIG } from "../../../config/platform.config"
 import Section from "../Section"
 
@@ -232,38 +234,49 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 			{renderSectionHeader?.("api-config")}
 			<Section>
 				<div className="flex flex-col gap-4">
-					{/* Connection Status Header */}
-					<div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-editorWidget-background)]">
-						<div className="flex flex-wrap items-center gap-1.5 text-xs min-w-0">
-							<Server className="w-4 h-4 shrink-0" />
-							<span className="font-medium whitespace-nowrap">TrueForge Runtime</span>
+					{/* Pacior Brand & Runtime Status Header */}
+					<div className="flex flex-col gap-2.5 p-3 rounded-lg border border-[var(--vscode-panel-border)] bg-[#012E47]/15">
+						<div className="flex items-center justify-between gap-2">
+							<div className="flex items-center gap-2">
+								<PaciorIcon className="w-7 h-7 shrink-0" variant="badge" />
+								<PaciorWordmark className="h-5 w-auto max-w-[130px]" showLabs={true} />
+							</div>
+							<div className="flex items-center gap-2 shrink-0">
+								<VSCodeButton appearance="secondary" disabled={loading} onClick={() => void loadFromTrueForge()}>
+									<span className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
+										<RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+										Refresh
+									</span>
+								</VSCodeButton>
+								<a
+									className="inline-flex items-center gap-1 text-xs text-[#B9E01E] hover:underline whitespace-nowrap shrink-0"
+									href={cleanBaseUrl}
+									rel="noreferrer"
+									target="_blank">
+									Dashboard <ExternalLink className="w-3 h-3 shrink-0" />
+								</a>
+							</div>
+						</div>
+
+						<div className="flex items-center justify-between text-xs pt-1 border-t border-[var(--vscode-panel-border)]/50">
+							<span className="text-[var(--vscode-descriptionForeground)]">TrueForge Runtime Status</span>
 							{connected === true && (
-								<span className="inline-flex items-center gap-1 text-[var(--vscode-testing-iconPassed)] whitespace-nowrap">
-									<CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+								<span className="inline-flex items-center gap-1.5 text-[#B9E01E] font-medium whitespace-nowrap">
+									<span className="w-2 h-2 rounded-full bg-[#B9E01E] shadow-sm shadow-[#B9E01E]/50 animate-pulse" />
 									Connected
 								</span>
 							)}
 							{connected === false && (
-								<span className="inline-flex items-center gap-1 text-[var(--vscode-errorForeground)] whitespace-nowrap">
+								<span className="inline-flex items-center gap-1.5 text-[var(--vscode-errorForeground)] font-medium whitespace-nowrap">
 									<XCircle className="w-3.5 h-3.5 shrink-0" />
 									Disconnected
 								</span>
 							)}
-						</div>
-						<div className="flex items-center gap-3 shrink-0">
-							<VSCodeButton appearance="secondary" disabled={loading} onClick={() => void loadFromTrueForge()}>
-								<span className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
-									<RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-									Refresh
+							{connected === null && (
+								<span className="inline-flex items-center gap-1.5 text-[var(--vscode-descriptionForeground)]">
+									Checking...
 								</span>
-							</VSCodeButton>
-							<a
-								className="inline-flex items-center gap-1 text-xs text-[var(--vscode-textLink-foreground)] hover:underline whitespace-nowrap shrink-0"
-								href={cleanBaseUrl}
-								rel="noreferrer"
-								target="_blank">
-								Dashboard <ExternalLink className="w-3 h-3 shrink-0" />
-							</a>
+							)}
 						</div>
 					</div>
 

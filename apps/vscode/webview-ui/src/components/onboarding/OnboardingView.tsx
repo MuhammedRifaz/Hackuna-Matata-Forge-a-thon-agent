@@ -4,7 +4,8 @@ import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from 
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import ClineLogoWhite from "@/assets/ClineLogoWhite"
+import PaciorIcon from "@/assets/PaciorIcon"
+import PaciorWordmark from "@/assets/PaciorWordmark"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -618,9 +619,12 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col w-full">
-			<div className="h-full px-5 xs:mx-10 overflow-auto flex flex-col gap-4 items-center justify-center">
-				<ClineLogoWhite className="size-16 flex-shrink-0" />
-				<h2 className="text-lg font-semibold p-0 flex-shrink-0">{stepDisplayInfo.title}</h2>
+			<div className="h-full px-5 xs:mx-10 overflow-auto flex flex-col gap-3 items-center justify-center">
+				<div className="flex flex-col items-center gap-2.5 my-2 flex-shrink-0">
+					<PaciorIcon className="w-16 h-16 shadow-lg shadow-[#012E47]/30" variant="badge" />
+					<PaciorWordmark className="h-6 w-auto max-w-[190px]" showLabs={true} />
+				</div>
+				<h2 className="text-lg font-semibold p-0 flex-shrink-0 text-center">{stepDisplayInfo.title}</h2>
 				{stepNumber === 2 && (
 					<div className="flex w-full max-w-lg flex-col gap-6 my-4 items-center ">
 						<LoaderCircleIcon className="animate-spin" />

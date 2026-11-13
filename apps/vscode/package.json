@@ -1,7 +1,7 @@
 {
 	"name": "claude-dev",
-	"displayName": "Cline",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
+	"displayName": "Pacior",
+	"description": "Pacior - Autonomous AI coding agent powered by TrueForge.",
 	"version": "4.1.26",
 	"icon": "assets/icons/icon.png",
 	"engines": {
@@ -46,6 +46,13 @@
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"themes": [
+			{
+				"label": "Pacior Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/pacior-dark-color-theme.json"
+			}
+		],
 		"icons": {
 			"cline-icon": {
 				"description": "cline",
@@ -111,7 +118,7 @@
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
+					"title": "Pacior",
 					"icon": "assets/icons/icon.svg"
 				}
 			]

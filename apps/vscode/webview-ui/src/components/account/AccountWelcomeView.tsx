@@ -1,20 +1,21 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import PaciorIcon from "@/assets/PaciorIcon"
+import PaciorWordmark from "@/assets/PaciorWordmark"
 import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
 import { useClineSignIn } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import ClineLogoVariable from "../../assets/ClineLogoVariable"
 import { ClinePassWelcomeCallout } from "./ClinePassCard"
 
-// export const AccountWelcomeView = () => (
-// 	<div className="flex flex-col items-center pr-3 gap-2.5">
-// 		<ClineLogoWhite className="size-16 mb-4" />
 export const AccountWelcomeView = () => {
 	const { environment } = useExtensionState()
 	const { isLoginLoading, authStatusMessage, handleSignIn } = useClineSignIn()
 
 	return (
 		<div className="flex flex-col items-center gap-2.5">
-			<ClineLogoVariable className="size-16 mb-4" environment={environment} />
+			<div className="flex flex-col items-center gap-2 mb-3">
+				<PaciorIcon className="w-16 h-16 shadow-lg shadow-[#012E47]/30" variant="badge" />
+				<PaciorWordmark className="h-6 w-auto max-w-[190px]" showLabs={true} />
+			</div>
 
 			<p>
 				Sign up for an account to get access to the latest models, billing dashboard to view usage and credits, and more

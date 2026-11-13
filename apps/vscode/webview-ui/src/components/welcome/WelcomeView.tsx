@@ -1,7 +1,8 @@
 import { BooleanRequest, EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
-import ClineLogoWhite from "@/assets/ClineLogoWhite"
+import PaciorIcon from "@/assets/PaciorIcon"
+import PaciorWordmark from "@/assets/PaciorWordmark"
 import ApiOptions from "@/components/settings/ApiOptions"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
@@ -39,10 +40,11 @@ const WelcomeView = memo(() => {
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col">
 			<div className="h-full px-5 overflow-auto flex flex-col gap-2.5">
-				<h2 className="text-lg font-semibold">Hi, I'm Cline</h2>
-				<div className="flex justify-center my-5">
-					<ClineLogoWhite className="size-16" />
+				<div className="flex flex-col items-center gap-2.5 my-4">
+					<PaciorIcon className="w-16 h-16 shadow-lg shadow-[#012E47]/30" variant="badge" />
+					<PaciorWordmark className="h-6 w-auto max-w-[190px]" showLabs={true} />
 				</div>
+				<h2 className="text-lg font-semibold text-center">Hi, I'm Pacior</h2>
 				<p>
 					I can do all kinds of tasks thanks to breakthroughs in{" "}
 					<VSCodeLink className="inline" href="https://www.anthropic.com/claude/sonnet">

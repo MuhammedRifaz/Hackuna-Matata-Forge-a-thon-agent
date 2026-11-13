@@ -1,6 +1,12 @@
 /* Editor theme mapping */
 @theme {
-	--color-cline: #9663f1;
+	--color-cline: #B9E01E;
+	--color-cline-foreground: #012E47;
+	--color-pacior-navy: #012E47;
+	--color-pacior-lime: #B9E01E;
+	--color-pacior-white: #FFFFFF;
+	--color-pacior-navy-dark: #001B2B;
+	--color-pacior-navy-light: #023C5C;
 	--color-background: var(--vscode-sideBar-background);
 	--color-border: var(--vscode-focusBorder);
 	--color-border-panel: var(--vscode-panel-border);
