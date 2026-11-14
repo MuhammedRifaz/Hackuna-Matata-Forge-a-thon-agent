@@ -96,6 +96,14 @@ export class TrueForgeClient {
 	}
 
 	/**
+	 * Lists configured models from TrueForge.
+	 */
+	async listModels(): Promise<TrueForgeApi.Model[]> {
+		const page = await this.sdk.models.list({ timeoutInSeconds: 10, maxRetries: 0 })
+		return page.data
+	}
+
+	/**
 	 * Registers or updates the local VS Code workspace MCP server in TrueForge Settings -> Connectors.
 	 */
 	async ensureWorkspaceMcpServer(mcpUrl: string, serverName = VSCODE_MCP_SERVER_NAME): Promise<void> {

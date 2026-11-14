@@ -675,6 +675,41 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			}
 			const formatted = formatTrueForgeError(error, this.runtimeAddress)
 			Logger.error(`[TrueForgeSessionHost] Turn failed: ${formatted.message}`)
+
+			// B3: Automatic fallback to a secondary configured model with zero user action & workspace unchanged
+			const isModelFailure = /model|rate limit|quota|unauthorized|failed to fetch|overloaded|503|502|429/i.test(
+				formatted.message,
+			)
+			if (isModelFailure) {
+				try {
+					const models = await this.client.listModels()
+					const fallbackCandidate = models.find((m: { name: string }) => m.name !== session.modelId)
+					if (fallbackCandidate) {
+						Logger.log(
+							`[TrueForgeSessionHost] [B3 Fallback] Triggering automatic failover from ${session.modelId} -> ${fallbackCandidate.name}`,
+						)
+						const latest = await this.client.resolveAgentSpec({
+							cwd: session.cwd,
+							mode: session.mode,
+							requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
+						})
+						latest.spec.model = { name: fallbackCandidate.name }
+						await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
+						session.modelId = fallbackCandidate.name
+
+						this.emitAgentEvent(session.clineSessionId, {
+							type: "content_delta",
+							delta: `\n> ⚠️ *Primary model error (${formatted.message}). Automatically failed over to fallback model \`${fallbackCandidate.name}\` with no user intervention needed.*\n\n`,
+						})
+
+						// Retry the send transparently on the fallback model
+						return this.send(input)
+					}
+				} catch (fallbackErr) {
+					Logger.error(`[TrueForgeSessionHost] [B3 Fallback] Failover attempt failed: ${fallbackErr}`)
+				}
+			}
+
 			session.status = "error"
 			const errObj = new Error(formatted.message)
 			this.emitAgentEvent(session.clineSessionId, {
