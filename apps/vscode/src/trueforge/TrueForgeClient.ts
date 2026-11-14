@@ -197,9 +197,10 @@ export class TrueForgeClient {
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
 				config: {
 					...baseManifest.config,
+					iterationLimit: 15,
+					dynamicSubAgents: { enabled: false },
 					sandbox: {
-						enabled: true,
-						environmentName: "default",
+						enabled: false,
 						fileDownloads: true,
 					},
 					contextManagement: {

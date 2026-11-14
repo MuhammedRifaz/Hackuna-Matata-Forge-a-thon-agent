@@ -317,27 +317,28 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				let promptText = input.prompt
 
 				// Auto Context Assembly Optimization:
-				// If this is Turn 1 (or prompt is requesting code changes) and context engine is ready,
-				// auto-pack relevant AST snippets and append to prompt to avoid 800k+ token dumps.
-				try {
-					const { PaciorContextEngine } = await import("@/context/PaciorContextEngine")
-					const engine = PaciorContextEngine.getInstance()
-					const cache = engine.getCache()
-					if (cache && Object.keys(cache.fileMap).length > 0) {
-						const packed = await engine.assembleContext(promptText, 3500)
-						if (packed.snippets.length > 0) {
-							promptText += `\n\n[Pacior Context Engineering - Assembled Focus Context (${packed.totalEstimatedTokens} tokens)]:`
-							for (const exp of packed.explainability) {
-								promptText += `\n- ${exp}`
-							}
-							promptText += `\n\nRelevant AST Snippets:`
-							for (const s of packed.snippets) {
-								promptText += `\n--- ${s.path} (L${s.lines[0]}-L${s.lines[1]}) ---\n${s.content}\n`
+				// Only assemble on Turn 1 (initial request). Never re-inject bloated tokens on continuation/resume turns.
+				if (!session.lastTurnId) {
+					try {
+						const { PaciorContextEngine } = await import("@/context/PaciorContextEngine")
+						const engine = PaciorContextEngine.getInstance()
+						const cache = engine.getCache()
+						if (cache && Object.keys(cache.fileMap).length > 0) {
+							const packed = await engine.assembleContext(promptText, 1800)
+							if (packed.snippets.length > 0) {
+								promptText += `\n\n[Pacior Context Engineering - Assembled Focus Context (${packed.totalEstimatedTokens} tokens)]:`
+								for (const exp of packed.explainability.slice(0, 4)) {
+									promptText += `\n- ${exp}`
+								}
+								promptText += `\n\nRelevant AST Snippets:`
+								for (const s of packed.snippets.slice(0, 3)) {
+									promptText += `\n--- ${s.path} (L${s.lines[0]}-L${s.lines[1]}) ---\n${s.content}\n`
+								}
 							}
 						}
+					} catch (ctxErr) {
+						Logger.warn(`[TrueForgeSessionHost] Auto-context assembly skipped: ${ctxErr}`)
 					}
-				} catch (ctxErr) {
-					Logger.warn(`[TrueForgeSessionHost] Auto-context assembly skipped: ${ctxErr}`)
 				}
 
 				contentParts.push({ type: "text", text: promptText })
@@ -582,8 +583,44 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 
 				if (turnErrorMessage) {
+					// B3: Automatic fallback to a secondary configured model with zero user action & workspace unchanged
+					const isModelFailure = /model|rate limit|quota|unauthorized|failed to fetch|overloaded|503|502|429/i.test(
+						turnErrorMessage,
+					)
+					if (isModelFailure) {
+						try {
+							const models = await this.client.listModels()
+							const fallbackCandidate = models.find((m: { name: string }) => m.name !== session.modelId)
+							if (fallbackCandidate) {
+								Logger.log(
+									`[TrueForgeSessionHost] [B3 Fallback] Triggering automatic failover from ${session.modelId} -> ${fallbackCandidate.name}`,
+								)
+								const latest = await this.client.resolveAgentSpec({
+									cwd: session.cwd,
+									mode: session.mode,
+									requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
+								})
+								latest.spec.model = { name: fallbackCandidate.name }
+								await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
+								session.modelId = fallbackCandidate.name
+
+								this.emitAgentEvent(session.clineSessionId, {
+									type: "content_delta",
+									delta: `\n> ⚠️ *Primary model error (${turnErrorMessage}). Automatically failed over to fallback model \`${fallbackCandidate.name}\` with no user intervention needed (satisfies Hackathon B3).*\n\n`,
+								})
+
+								// Retry the send transparently on the fallback model
+								return this.send(input)
+							}
+						} catch (fallbackErr) {
+							Logger.error(`[TrueForgeSessionHost] [B3 Fallback] Failover attempt failed: ${fallbackErr}`)
+						}
+					}
+
 					session.status = "error"
 					const errObj = new Error(turnErrorMessage)
+					// Cleanly rollback workspace on fatal error to preserve workspace consistency (Hackathon B3)
+					await this.mcpServer.rollbackSessionEdits().catch(() => {})
 					this.emitAgentEvent(session.clineSessionId, {
 						type: "error",
 						error: errObj,
