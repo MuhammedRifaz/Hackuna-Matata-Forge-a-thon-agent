@@ -200,7 +200,8 @@ export class TrueForgeClient {
 					iterationLimit: 15,
 					dynamicSubAgents: { enabled: false },
 					sandbox: {
-						enabled: false,
+						enabled: true,
+						environmentName: "default",
 						fileDownloads: true,
 					},
 					contextManagement: {
