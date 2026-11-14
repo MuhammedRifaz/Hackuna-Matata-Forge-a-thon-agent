@@ -314,7 +314,33 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 			const contentParts: Array<{ type: "text"; text: string }> = []
 			if (input.prompt?.trim()) {
-				contentParts.push({ type: "text", text: input.prompt })
+				let promptText = input.prompt
+
+				// Auto Context Assembly Optimization:
+				// If this is Turn 1 (or prompt is requesting code changes) and context engine is ready,
+				// auto-pack relevant AST snippets and append to prompt to avoid 800k+ token dumps.
+				try {
+					const { PaciorContextEngine } = await import("@/context/PaciorContextEngine")
+					const engine = PaciorContextEngine.getInstance()
+					const cache = engine.getCache()
+					if (cache && Object.keys(cache.fileMap).length > 0) {
+						const packed = await engine.assembleContext(promptText, 3500)
+						if (packed.snippets.length > 0) {
+							promptText += `\n\n[Pacior Context Engineering - Assembled Focus Context (${packed.totalEstimatedTokens} tokens)]:`
+							for (const exp of packed.explainability) {
+								promptText += `\n- ${exp}`
+							}
+							promptText += `\n\nRelevant AST Snippets:`
+							for (const s of packed.snippets) {
+								promptText += `\n--- ${s.path} (L${s.lines[0]}-L${s.lines[1]}) ---\n${s.content}\n`
+							}
+						}
+					}
+				} catch (ctxErr) {
+					Logger.warn(`[TrueForgeSessionHost] Auto-context assembly skipped: ${ctxErr}`)
+				}
+
+				contentParts.push({ type: "text", text: promptText })
 			}
 			if (contentParts.length === 0) {
 				contentParts.push({ type: "text", text: "Continue." })

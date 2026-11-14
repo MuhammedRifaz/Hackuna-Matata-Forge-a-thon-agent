@@ -170,11 +170,12 @@ export class TrueForgeClient {
 			"",
 			`VS Code Workspace Root: ${options.cwd}`,
 			modeGuidance,
-			"Tool Usage Rules:",
-			"- Always read files with `read_files` or find symbols with `search_files`/`list_files` before editing.",
-			"- Use `editor` for surgical edits to existing files (provide exact unique `old_text` and `new_text`).",
-			"- Use `write_to_file` only when creating a new file or rewriting a full file.",
-			"- Use `run_commands` to verify changes with tests or Python/CLI checks.",
+			"Context Engineering Protocol (Token-Optimized):",
+			"- When starting any task, prioritize calling `assemble_context` with your objective or target symbols to retrieve the exact AST-curated snippet boundaries and dependency structure.",
+			"- NEVER call `read_files` on full 1000+ line files when `assemble_context` provides the specific function/class ranges.",
+			"- For surgical code modifications, use `editor` with exact `old_text` and `new_text` within the extracted AST line ranges.",
+			"- Use `search_files` with specific regex or `list_files` only if additional untracked files are required.",
+			"- Use `run_commands` to run tests (e.g. pytest) inside the workspace to validate your edits.",
 		]
 			.filter((line) => line !== undefined)
 			.join("\n")
