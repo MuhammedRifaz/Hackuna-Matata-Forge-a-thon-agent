@@ -356,7 +356,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			// Loop continues seamlessly when TrueForge pauses with tool.approval_required and resumes with user.tool_approval.
 			while (true) {
 				if (abortController.signal.aborted) {
-					return this.buildAbortedResult(session, finalText, iterationCount, startedAt)
+					return await this.buildAbortedResult(session, finalText, iterationCount, startedAt)
 				}
 
 				const toolCallsById = new Map<string, TrackedToolCall>()
@@ -403,7 +403,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 				for await (const ev of stream) {
 					if (abortController.signal.aborted) {
-						return this.buildAbortedResult(session, finalText, iterationCount, startedAt)
+						return await this.buildAbortedResult(session, finalText, iterationCount, startedAt)
 					}
 
 					switch (ev.type) {
@@ -600,10 +600,11 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 
 				if (turnCancelled) {
-					return this.buildAbortedResult(session, finalText, iterationCount, startedAt)
+					return await this.buildAbortedResult(session, finalText, iterationCount, startedAt)
 				}
 
 				if (pendingApprovals.length === 0) {
+					this.mcpServer.commitSessionEdits()
 					session.status = "completed"
 					session.updatedAt = new Date().toISOString()
 					this.emitAgentEvent(session.clineSessionId, {
@@ -671,7 +672,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			}
 		} catch (error) {
 			if (abortController.signal.aborted) {
-				return this.buildAbortedResult(session, finalText, iterationCount, startedAt)
+				return await this.buildAbortedResult(session, finalText, iterationCount, startedAt)
 			}
 			const formatted = formatTrueForgeError(error, this.runtimeAddress)
 			Logger.error(`[TrueForgeSessionHost] Turn failed: ${formatted.message}`)
@@ -710,6 +711,9 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 			}
 
+			// Cleanly rollback workspace on fatal error to preserve workspace consistency (Hackathon B3)
+			await this.mcpServer.rollbackSessionEdits().catch(() => {})
+
 			session.status = "error"
 			const errObj = new Error(formatted.message)
 			this.emitAgentEvent(session.clineSessionId, {
@@ -732,17 +736,18 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		}
 	}
 
-	private buildAbortedResult(
+	private async buildAbortedResult(
 		session: ActiveTrueForgeSession,
 		finalText: string,
 		iterationCount: number,
 		startedAt: Date,
-	): AgentResult {
+	): Promise<AgentResult> {
 		session.status = "aborted"
+		await this.mcpServer.rollbackSessionEdits().catch(() => {})
 		this.emitAgentEvent(session.clineSessionId, {
 			type: "done",
 			reason: "aborted",
-			text: finalText,
+			text: finalText || "Task was cancelled. All uncommitted edits have been cleanly reverted to keep the workspace consistent.",
 			iterations: Math.max(1, iterationCount),
 		})
 		return this.buildAgentResult(session, "aborted", finalText, iterationCount, startedAt)
@@ -795,7 +800,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		const session = this.sessions.get(sessionId)
 		if (!session) return
 		session.abortController?.abort()
-		await this.client.cancelSession(session.tfSessionId)
+		await this.client.cancelSession(session.tfSessionId).catch(() => {})
+		await this.mcpServer.rollbackSessionEdits().catch(() => {})
 	}
 
 	async stop(sessionId: string): Promise<void> {

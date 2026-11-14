@@ -510,6 +510,29 @@ ${ctx.cellJson || "{}"}
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			abortCommitGeneration()
 		}),
+		vscode.commands.registerCommand("trueforge.resetWorkspace", async () => {
+			const wsFolders = vscode.workspace.workspaceFolders
+			if (!wsFolders || wsFolders.length === 0) {
+				vscode.window.showWarningMessage("No workspace folder open.")
+				return
+			}
+			const root = wsFolders[0].uri.fsPath
+			try {
+				const { exec } = await import("child_process")
+				await new Promise<void>((resolve, reject) => {
+					exec("git restore .", { cwd: root }, (err) => {
+						if (err) reject(err)
+						else resolve()
+					})
+				})
+				vscode.window.showInformationMessage("TrueForge: Workspace successfully reset to clean state.")
+			} catch (err) {
+				vscode.window.showErrorMessage(`TrueForge: Failed to reset workspace: ${err}`)
+			}
+		}),
+		vscode.commands.registerCommand("cline.resetWorkspace", async () => {
+			await vscode.commands.executeCommand("trueforge.resetWorkspace")
+		}),
 	)
 
 	// Listen for secrets changes (cross-window login/logout sync).
