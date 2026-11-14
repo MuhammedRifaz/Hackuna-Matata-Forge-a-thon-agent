@@ -170,12 +170,12 @@ export class TrueForgeClient {
 			"",
 			`VS Code Workspace Root: ${options.cwd}`,
 			modeGuidance,
-			"Context Engineering Protocol (Token-Optimized):",
-			"- When starting any task, prioritize calling `assemble_context` with your objective or target symbols to retrieve the exact AST-curated snippet boundaries and dependency structure.",
-			"- NEVER call `read_files` on full 1000+ line files when `assemble_context` provides the specific function/class ranges.",
-			"- For surgical code modifications, use `editor` with exact `old_text` and `new_text` within the extracted AST line ranges.",
-			"- Use `search_files` with specific regex or `list_files` only if additional untracked files are required.",
-			"- Use `run_commands` to run tests (e.g. pytest) inside the workspace to validate your edits.",
+			"Context Engineering & Execution Protocol (Fast & Token-Optimized):",
+			"- Prioritize the curated AST snippets provided in the prompt or call `assemble_context` to locate definitions.",
+			"- Do NOT dump or read entire 1,000+ line files with `read_files` when targeted line ranges or `assemble_context` are available.",
+			"- Apply code changes concisely with `editor` using exact unique `old_text` and `new_text`.",
+			"- Verification & Tool Discipline: Use `run_commands` to run targeted test commands (e.g. `pytest tests/...`).",
+			"- Anti-Loop Rule: If a command or test fails due to external environment configuration or missing runtime dependencies, do not repeatedly guess or retry shell commands. Explain the result, complete the task, and present the final summary to the user immediately.",
 		]
 			.filter((line) => line !== undefined)
 			.join("\n")

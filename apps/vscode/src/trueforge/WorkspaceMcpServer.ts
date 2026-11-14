@@ -629,6 +629,16 @@ export class WorkspaceMcpServer {
 		}
 
 		const outputs: string[] = []
+		const isWin = process.platform === "win32"
+		const shell = isWin ? "powershell.exe" : undefined
+
+		// In Python projects, ensure workspace root or src directory is automatically in PYTHONPATH
+		const env = { ...process.env }
+		const srcPath = path.join(workspaceRoot, "src")
+		const extraPaths = [workspaceRoot, srcPath]
+		const sep = isWin ? ";" : ":"
+		env.PYTHONPATH = env.PYTHONPATH ? `${extraPaths.join(sep)}${sep}${env.PYTHONPATH}` : extraPaths.join(sep)
+
 		for (const command of rawCommands) {
 			if (this.options.runCommandExecutor) {
 				outputs.push(await this.options.runCommandExecutor(command, workspaceRoot, signal))
@@ -637,6 +647,8 @@ export class WorkspaceMcpServer {
 			try {
 				const { stdout, stderr } = await execAsync(command, {
 					cwd: workspaceRoot,
+					shell,
+					env,
 					timeout: DEFAULT_COMMAND_TIMEOUT_MS,
 					maxBuffer: 4 * 1024 * 1024,
 					signal,
