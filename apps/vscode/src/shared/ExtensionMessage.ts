@@ -36,6 +36,8 @@ export interface ExtensionMessage {
 			symbolCount: number
 			lastIndexed: number
 			message?: string
+			languages?: Record<string, number>
+			fileList?: Array<{ path: string; symbols: number; lines: number }>
 		}
 		latestAssembly?: {
 			query: string

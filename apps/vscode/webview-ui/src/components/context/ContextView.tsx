@@ -9,6 +9,8 @@ interface ContextStatus {
 	symbolCount: number
 	lastIndexed: number
 	message?: string
+	languages?: Record<string, number>
+	fileList?: Array<{ path: string; symbols: number; lines: number }>
 }
 
 interface AssembledContext {
@@ -132,6 +134,58 @@ export const ContextView: React.FC<ContextViewProps> = ({ onDone }) => {
 						<div className="text-base font-bold text-foreground mt-0.5">{status.symbolCount}</div>
 					</div>
 				</div>
+
+				{/* Pipeline Status Badges */}
+				<div className="mb-3 p-2 rounded bg-[var(--vscode-sideBar-background)] border border-[var(--vscode-panel-border)]/30">
+					<div className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">Pipeline Components</div>
+					<div className="grid grid-cols-2 gap-1.5 text-[11px]">
+						<div className="flex items-center gap-1.5 text-foreground">
+							<CheckCircle2Icon className="w-3 h-3 text-[#B9E01E]" /> Lexical Search (Ripgrep)
+						</div>
+						<div className="flex items-center gap-1.5 text-foreground">
+							<CheckCircle2Icon className="w-3 h-3 text-[#B9E01E]" /> AST Parser (Python AST)
+						</div>
+						<div className="flex items-center gap-1.5 text-foreground">
+							<CheckCircle2Icon className="w-3 h-3 text-[#B9E01E]" /> Dependency Graph
+						</div>
+						<div className="flex items-center gap-1.5 text-foreground">
+							<CheckCircle2Icon className="w-3 h-3 text-[#B9E01E]" /> Knapsack Token Packer
+						</div>
+					</div>
+				</div>
+
+				{/* Language Breakdown */}
+				{status.languages && Object.keys(status.languages).length > 0 && (
+					<div className="mb-3">
+						<div className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Detected Languages</div>
+						<div className="flex flex-wrap gap-1.5">
+							{Object.entries(status.languages).map(([ext, count]) => (
+								<span
+									key={ext}
+									className="text-[10px] bg-[var(--vscode-sideBar-background)] px-2 py-0.5 rounded border border-[var(--vscode-panel-border)]/40 font-mono text-[#B9E01E]">
+									{ext}: {count}
+								</span>
+							))}
+						</div>
+					</div>
+				)}
+
+				{/* Detailed File Inspector */}
+				{status.fileList && status.fileList.length > 0 && (
+					<div className="mb-3">
+						<div className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">Parsed Workspace Files ({status.fileList.length})</div>
+						<div className="max-h-32 overflow-y-auto space-y-1 pr-1">
+							{status.fileList.map((f, i) => (
+								<div
+									key={i}
+									className="flex justify-between items-center text-[10px] bg-[var(--vscode-sideBar-background)] px-2 py-1 rounded border border-[var(--vscode-panel-border)]/20 font-mono">
+									<span className="truncate max-w-[180px] text-foreground">{f.path}</span>
+									<span className="text-muted-foreground shrink-0">{f.symbols} sym | {f.lines} lines</span>
+								</div>
+							))}
+						</div>
+					</div>
+				)}
 
 				<div className="flex items-center justify-between">
 					<span className="text-[10px] text-muted-foreground">

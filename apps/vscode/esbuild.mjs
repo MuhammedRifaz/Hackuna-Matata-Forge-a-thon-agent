@@ -202,9 +202,20 @@ function copyPluginRuntime() {
 	fs.cpSync(source, destination, { recursive: true })
 }
 
+/** Copy Pacior AST analyzer script to dist directory so it's always adjacent to extension.js. */
+function copyContextAnalyzer() {
+	const source = path.resolve(__dirname, "src/context/pacior_ast_analyzer.py")
+	if (fs.existsSync(source)) {
+		fs.copyFileSync(source, path.join(destDir, "pacior_ast_analyzer.py"))
+	}
+}
+
 async function main() {
 	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
-	if (!e2eBuild) copyPluginRuntime()
+	if (!e2eBuild) {
+		copyPluginRuntime()
+		copyContextAnalyzer()
+	}
 	const extensionCtx = await esbuild.context(config)
 	if (watch) {
 		await extensionCtx.watch()

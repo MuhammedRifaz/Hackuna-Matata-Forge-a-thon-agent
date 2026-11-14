@@ -109,7 +109,21 @@ export class PaciorContextEngine {
 		this.notifyProgress(10, "Scanning files for AST parsing...")
 
 		try {
-			const analyzerScript = path.join(__dirname, "pacior_ast_analyzer.py")
+			// Locate analyzer script both in source and compiled dist/assets locations
+			const candidates = [
+				path.join(__dirname, "pacior_ast_analyzer.py"),
+				path.join(__dirname, "context", "pacior_ast_analyzer.py"),
+				path.join(__dirname, "..", "src", "context", "pacior_ast_analyzer.py"),
+			]
+			let analyzerScript = candidates[0]
+			for (const cand of candidates) {
+				try {
+					await fs.access(cand)
+					analyzerScript = cand
+					break
+				} catch {}
+			}
+
 			const pythonCmd = process.platform === "win32" ? "python" : "python3"
 
 			const pyProc = spawn(pythonCmd, [analyzerScript, workspaceRoot])
@@ -180,14 +194,27 @@ export class PaciorContextEngine {
 	}
 
 	public getStatus() {
+		const files = Object.keys(this.cache?.fileMap || {})
+		const languages: Record<string, number> = {}
+		for (const f of files) {
+			const ext = path.extname(f) || "other"
+			languages[ext] = (languages[ext] || 0) + 1
+		}
+
 		return {
 			isIndexing: this.isIndexing,
-			fileCount: Object.keys(this.cache?.fileMap || {}).length,
+			fileCount: files.length,
 			symbolCount: Object.values(this.cache?.fileMap || {}).reduce(
 				(sum, f) => sum + (f.summary?.symbols?.length || 0),
 				0,
 			),
 			lastIndexed: this.cache?.timestamp || 0,
+			languages,
+			fileList: files.slice(0, 50).map((f) => ({
+				path: f,
+				symbols: this.cache?.fileMap[f]?.summary?.symbols?.length || 0,
+				lines: this.cache?.fileMap[f]?.summary?.line_count || 0,
+			})),
 		}
 	}
 
