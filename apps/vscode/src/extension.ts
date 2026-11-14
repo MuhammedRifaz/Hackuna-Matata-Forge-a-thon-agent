@@ -87,6 +87,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	await exportVSCodeStorageToSharedFiles(context, storageContext)
 	migrateOpenAiCompatibleBaseUrlToV1(storageContext)
 
+	// Initialize PaciorContextEngine for workspace
+	if (workspacePath) {
+		import("./context/PaciorContextEngine").then(({ PaciorContextEngine }) => {
+			PaciorContextEngine.getInstance().initWorkspace(workspacePath).catch((err) => {
+				Logger.error("[extension] PaciorContextEngine init error:", err)
+			})
+		})
+	}
+
 	// 4. Register services and perform common initialization
 	// IMPORTANT: Must be done after host provider is setup and migrations are complete
 	const webview = (await initialize(storageContext)) as VscodeWebviewProvider

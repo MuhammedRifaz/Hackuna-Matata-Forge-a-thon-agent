@@ -8,6 +8,7 @@ import { telemetryService } from "@/services/telemetry"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import { WebviewMessage } from "@/shared/WebviewMessage"
+import { PaciorContextEngine } from "@/context/PaciorContextEngine"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -74,6 +75,20 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// and executes code based on the message that is received
 		this.setWebviewMessageListener(webviewView.webview)
 		telemetryService.capturePanelOpened("sidebar_resolved")
+
+		// Hook up context engine progress notifications to webview
+		const engine = PaciorContextEngine.getInstance()
+		engine.onProgress((status) => {
+			this.postMessageToWebview({
+				type: "pacior_context_update",
+				pacior_context_update: {
+					status: {
+						...engine.getStatus(),
+						message: status.message,
+					},
+				},
+			}).catch(() => {})
+		})
 
 		// Logs show up in bottom panel > Debug Console
 		//Logger.log("registering listener")
@@ -219,6 +234,40 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 						},
 					})
 				}
+				break
+			}
+			case "pacior_context_action": {
+				const actionData = message.pacior_context_action
+				if (!actionData) break
+				const engine = PaciorContextEngine.getInstance()
+
+				if (actionData.action === "reindex") {
+					const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd()
+					await engine.startIndexingInBackground(root)
+				} else if (actionData.action === "assemble" && actionData.query) {
+					const assembly = await engine.assembleContext(actionData.query, actionData.tokenBudget || 3500)
+					await postMessageToWebview({
+						type: "pacior_context_update",
+						pacior_context_update: {
+							status: engine.getStatus(),
+							latestAssembly: {
+								query: actionData.query,
+								totalEstimatedTokens: assembly.totalEstimatedTokens,
+								tokenBudget: actionData.tokenBudget || 3500,
+								snippets: assembly.snippets,
+								explainability: assembly.explainability,
+							},
+						},
+					})
+					break
+				}
+
+				await postMessageToWebview({
+					type: "pacior_context_update",
+					pacior_context_update: {
+						status: engine.getStatus(),
+					},
+				})
 				break
 			}
 			default: {

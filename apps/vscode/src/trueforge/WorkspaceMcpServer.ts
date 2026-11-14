@@ -6,6 +6,7 @@ import { promisify } from "node:util"
 import type { EditFileInput, EditorExecutor, ToolExecutors } from "@cline/core"
 import type { AgentToolContext } from "@cline/shared"
 import { Logger } from "@/shared/services/Logger"
+import { PaciorContextEngine } from "@/context/PaciorContextEngine"
 
 const execAsync = promisify(exec)
 
@@ -136,6 +137,19 @@ const TOOL_DEFINITIONS: McpToolDefinition[] = [
 				},
 			},
 			required: ["commands"],
+		},
+	},
+	{
+		name: "assemble_context",
+		description:
+			"Perform context engineering query over the repository. Uses AST structure and dependency graph to pack relevant symbols within a strict token budget instead of dumping full files.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				query: { type: "string", description: "Search query or natural language instruction describing what code is needed." },
+				token_budget: { type: "number", description: "Maximum token budget for packed context (default 3500)." },
+			},
+			required: ["query"],
 		},
 	},
 ]
@@ -368,6 +382,8 @@ export class WorkspaceMcpServer {
 				return this.handleWriteToFile(args, workspaceRoot, toolContext)
 			case "run_commands":
 				return this.handleRunCommands(args, workspaceRoot, toolContext.signal)
+			case "assemble_context":
+				return this.handleAssembleContext(args)
 			default:
 				throw new Error(`Unknown workspace tool: ${toolName}`)
 		}
@@ -634,5 +650,29 @@ export class WorkspaceMcpServer {
 			}
 		}
 		return outputs.join("\n\n")
+	}
+
+	private async handleAssembleContext(args: Record<string, unknown>): Promise<string> {
+		const query = String(args.query ?? "").trim()
+		if (!query) {
+			throw new Error("assemble_context requires a 'query' string")
+		}
+		const budget = typeof args.token_budget === "number" ? Math.floor(args.token_budget) : 3500
+		const engine = PaciorContextEngine.getInstance()
+		const result = await engine.assembleContext(query, budget)
+
+		const lines: string[] = [
+			`=== Pacior Context Assembly (Packed: ${result.totalEstimatedTokens} / ${budget} tokens) ===`,
+			`\nExplainability:`,
+			...result.explainability.map((e) => `• ${e}`),
+			`\nAssembled Snippets (${result.snippets.length}):`,
+		]
+
+		for (const s of result.snippets) {
+			lines.push(`\n--- ${s.path} (L${s.lines[0]}-L${s.lines[1]}) [Score: ${s.score}] ---`)
+			lines.push(s.content)
+		}
+
+		return lines.join("\n")
 	}
 }

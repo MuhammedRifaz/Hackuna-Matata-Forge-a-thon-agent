@@ -1,5 +1,5 @@
 export interface WebviewMessage {
-	type: "grpc_request" | "grpc_request_cancel" | "trueforge_proxy"
+	type: "grpc_request" | "grpc_request_cancel" | "trueforge_proxy" | "pacior_context_action"
 	grpc_request?: GrpcRequest
 	grpc_request_cancel?: GrpcCancel
 	trueforge_proxy?: {
@@ -7,6 +7,11 @@ export interface WebviewMessage {
 		url: string
 		method?: string
 		body?: string
+	}
+	pacior_context_action?: {
+		action: "get_status" | "reindex" | "assemble"
+		query?: string
+		tokenBudget?: number
 	}
 }
 

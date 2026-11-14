@@ -1,4 +1,4 @@
-import { HistoryIcon, PlusIcon, PuzzleIcon, SettingsIcon } from "lucide-react"
+import { HistoryIcon, PlusIcon, PuzzleIcon, SettingsIcon, CpuIcon } from "lucide-react"
 import { useMemo } from "react"
 import PaciorIcon from "@/assets/PaciorIcon"
 import PaciorWordmark from "@/assets/PaciorWordmark"
@@ -11,7 +11,7 @@ interface NavbarProps {
 }
 
 export const Navbar = ({ startNewTask }: NavbarProps) => {
-	const { navigateToHistory, navigateToSettings, navigateToMarketplace, navigateToChat } = useExtensionState()
+	const { navigateToHistory, navigateToSettings, navigateToMarketplace, navigateToChat, navigateToContext } = useExtensionState()
 
 	const SETTINGS_TABS = useMemo(
 		() => [
@@ -29,6 +29,13 @@ export const Navbar = ({ startNewTask }: NavbarProps) => {
 						console.error("Failed to clear task:", error)
 					}
 				},
+			},
+			{
+				id: "context",
+				name: "Context",
+				tooltip: "Context Engine",
+				icon: CpuIcon,
+				navigate: navigateToContext,
 			},
 			{
 				id: "customize",
@@ -52,7 +59,7 @@ export const Navbar = ({ startNewTask }: NavbarProps) => {
 				navigate: navigateToSettings,
 			},
 		],
-		[navigateToChat, navigateToHistory, navigateToMarketplace, navigateToSettings, startNewTask],
+		[navigateToChat, navigateToContext, navigateToHistory, navigateToMarketplace, navigateToSettings, startNewTask],
 	)
 
 	return (

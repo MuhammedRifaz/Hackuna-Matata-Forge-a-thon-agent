@@ -133,15 +133,18 @@ export interface ExtensionStateContextType extends ExtensionState {
 	navigateToAccount: () => void
 	navigateToWorktrees: () => void
 	navigateToChat: () => void
+	navigateToContext: () => void
 
 	// Hide functions
 	hideSettings: () => void
 	hideHistory: () => void
 	hideAccount: () => void
 	hideWorktrees: () => void
+	hideContext: () => void
 	hideAnnouncement: () => void
 	closeMarketplaceView: () => void
 	closeMcpView: () => void
+	showContext: boolean
 
 	// Event callbacks
 }
@@ -161,6 +164,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showHistory, setShowHistory] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showWorktrees, setShowWorktrees] = useState(false)
+	const [showContext, setShowContext] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 
 	// Helper for MCP view
@@ -270,7 +274,22 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowWorktrees(false)
+		setShowContext(false)
 	}, [closeMarketplaceView, setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
+
+	const navigateToContext = useCallback(() => {
+		closeMarketplaceView()
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(false)
+		setShowWorktrees(false)
+		setShowContext(true)
+	}, [closeMarketplaceView, setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
+
+	const hideContext = useCallback(() => {
+		setShowContext(false)
+	}, [])
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -898,12 +917,15 @@ export const ExtensionStateContextProvider: React.FC<{
 		navigateToAccount,
 		navigateToWorktrees,
 		navigateToChat,
+		navigateToContext,
 
 		// Hide functions
 		hideSettings,
 		hideHistory,
 		hideAccount,
 		hideWorktrees,
+		hideContext,
+		showContext,
 		hideAnnouncement,
 		closeMarketplaceView,
 		setShowAnnouncement,

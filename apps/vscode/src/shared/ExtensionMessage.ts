@@ -20,7 +20,7 @@ import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
 // webview will hold state
 export interface ExtensionMessage {
-	type: "grpc_response" | "trueforge_proxy_response" // New type for gRPC responses
+	type: "grpc_response" | "trueforge_proxy_response" | "pacior_context_update" // New type for gRPC responses
 	grpc_response?: GrpcResponse
 	trueforge_proxy_response?: {
 		request_id: string
@@ -28,6 +28,22 @@ export interface ExtensionMessage {
 		status: number
 		body: string
 		error?: string
+	}
+	pacior_context_update?: {
+		status: {
+			isIndexing: boolean
+			fileCount: number
+			symbolCount: number
+			lastIndexed: number
+			message?: string
+		}
+		latestAssembly?: {
+			query: string
+			totalEstimatedTokens: number
+			tokenBudget: number
+			snippets: Array<{ path: string; lines: [number, number]; score: number; reason: string; content: string }>
+			explainability: string[]
+		}
 	}
 }
 
