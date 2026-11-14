@@ -11,6 +11,7 @@ const prefix = name === "claude-dev" ? "cline" : name
  */
 const ClineCommands = {
 	PlusButton: prefix + ".plusButtonClicked",
+	ContextButton: prefix + ".contextButtonClicked",
 	McpButton: prefix + ".mcpButtonClicked",
 	MarketplaceButton: prefix + ".marketplaceButtonClicked",
 	SettingsButton: prefix + ".settingsButtonClicked",

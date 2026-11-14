@@ -1,4 +1,5 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { CpuIcon } from "lucide-react"
 import PaciorIcon from "@/assets/PaciorIcon"
 import PaciorWordmark from "@/assets/PaciorWordmark"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -9,6 +10,7 @@ interface HomeHeaderProps {
 }
 
 const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
+	const { navigateToContext } = useExtensionState()
 	const handleTakeATour = async () => {
 		try {
 			await UiServiceClient.openWalkthrough(EmptyRequest.create())
@@ -28,6 +30,18 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 			<div className="text-center flex items-center justify-center px-4">
 				<h1 className="m-0 font-bold text-foreground text-base tracking-tight">{headingText}</h1>
 			</div>
+
+			{/* Context Engine Quick Access Pill */}
+			<div className="mt-3">
+				<button
+					type="button"
+					onClick={() => navigateToContext()}
+					className="flex items-center gap-2 px-3 py-1 rounded-full border border-[var(--vscode-panel-border)]/60 bg-[var(--vscode-editor-background)] hover:border-[#B9E01E]/60 text-xs text-muted-foreground hover:text-foreground transition-all cursor-pointer">
+					<CpuIcon className="w-3.5 h-3.5 text-[#B9E01E]" />
+					<span>Context Engine & Knapsack</span>
+				</button>
+			</div>
+
 			{shouldShowQuickWins && (
 				<div className="mt-4">
 					<button

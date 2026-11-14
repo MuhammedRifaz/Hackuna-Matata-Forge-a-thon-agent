@@ -39,6 +39,7 @@ const AppContent = () => {
 		hideAccount,
 		hideWorktrees,
 		hideContext,
+		navigateToContext,
 		closeMarketplaceView,
 		hideAnnouncement,
 	} = useExtensionState()
@@ -70,6 +71,16 @@ const AppContent = () => {
 			openClinePassSubscriptionIfPending(clineUser.appBaseUrl)
 		}
 	}, [clineUser?.uid, clineUser?.appBaseUrl])
+
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			if (event.data?.type === "pacior_context_open") {
+				navigateToContext()
+			}
+		}
+		window.addEventListener("message", handleMessage)
+		return () => window.removeEventListener("message", handleMessage)
+	}, [navigateToContext])
 
 	if (!didHydrateState) {
 		return null

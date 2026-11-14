@@ -148,6 +148,17 @@ export async function activate(context: vscode.ExtensionContext) {
 			await sendChatButtonClickedEvent()
 		}),
 	)
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.ContextButton, async () => {
+			const sidebarInstance = WebviewProvider.getInstance() as VscodeWebviewProvider
+			const webview = sidebarInstance.getWebview()
+			if (webview) {
+				await webview.webview.postMessage({
+					type: "pacior_context_open",
+				})
+			}
+		}),
+	)
 	context.subscriptions.push(vscode.commands.registerCommand(commands.McpButton, () => sendMcpButtonClickedEvent()))
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.MarketplaceButton, () => sendMarketplaceButtonClickedEvent()),
