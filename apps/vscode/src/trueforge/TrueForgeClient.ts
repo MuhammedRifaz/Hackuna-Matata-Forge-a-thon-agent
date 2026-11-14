@@ -187,6 +187,18 @@ export class TrueForgeClient {
 				...baseManifest,
 				instructions: workspaceContext,
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
+				config: {
+					...baseManifest.config,
+					sandbox: {
+						enabled: true,
+						environmentName: "default",
+						fileDownloads: true,
+					},
+					contextManagement: {
+						compaction: { enabled: true },
+						largeToolResponse: { enabled: true },
+					},
+				},
 			},
 		}
 	}
