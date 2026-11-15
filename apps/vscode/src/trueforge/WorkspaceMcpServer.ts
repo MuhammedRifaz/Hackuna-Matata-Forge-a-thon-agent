@@ -751,6 +751,8 @@ export class WorkspaceMcpServer {
 				venvScripts2,
 				py314,
 				py314Scripts,
+				"C:\\Program Files\\Git\\cmd",
+				"C:\\Program Files\\Git\\bin",
 				"C:\\Windows\\System32",
 				"C:\\Windows",
 				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0",
