@@ -743,7 +743,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					let answer = "Implement all parts now"
 					if (this.options.askQuestion) {
 						try {
-							answer = await this.options.askQuestion(
+							const rawAnswer = await this.options.askQuestion(
 								questionText,
 								questionOptions,
 								{
@@ -753,6 +753,11 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 									signal: abortController.signal,
 								},
 							)
+							if (typeof rawAnswer === "string") {
+								answer = rawAnswer
+							} else if (Array.isArray(rawAnswer)) {
+								answer = rawAnswer.map((p) => ("text" in p ? p.text : "")).filter(Boolean).join("\n") || questionOptions[0] || "Proceed"
+							}
 						} catch (qErr) {
 							Logger.warn(`[TrueForgeSessionHost] askQuestion interaction failed: ${qErr}`)
 							answer = questionOptions[0] ?? "Proceed"
