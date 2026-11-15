@@ -82,6 +82,9 @@ interface ActiveTrueForgeSession {
 	totalInputTokens: number
 	totalOutputTokens: number
 	totalCacheReadTokens: number
+	lastReportedInputTokens?: number
+	lastReportedOutputTokens?: number
+	lastReportedCacheTokens?: number
 	totalCost: number
 	failedModelIds: Set<string>
 }
@@ -528,16 +531,25 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								if (cacheReadTokens > session.totalCacheReadTokens) {
 									session.totalCacheReadTokens = cacheReadTokens
 								}
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "usage",
-									inputTokens,
-									outputTokens,
-									cacheReadTokens,
-									totalInputTokens: session.totalInputTokens,
-									totalOutputTokens: session.totalOutputTokens,
-									totalCacheReadTokens: session.totalCacheReadTokens,
-									totalCost: session.totalCost,
-								})
+								// Only emit usage when model.message delta actually updates to avoid firing dozens of duplicate events per stream
+								const incrementalIn = Math.max(0, inputTokens - (session.lastReportedInputTokens ?? 0))
+								const incrementalOut = Math.max(0, outputTokens - (session.lastReportedOutputTokens ?? 0))
+								const incrementalCache = Math.max(0, cacheReadTokens - (session.lastReportedCacheTokens ?? 0))
+								if (incrementalIn > 0 || incrementalOut > 0 || incrementalCache > 0) {
+									session.lastReportedInputTokens = inputTokens
+									session.lastReportedOutputTokens = outputTokens
+									session.lastReportedCacheTokens = cacheReadTokens
+									this.emitAgentEvent(session.clineSessionId, {
+										type: "usage",
+										inputTokens: incrementalIn,
+										outputTokens: incrementalOut,
+										cacheReadTokens: incrementalCache,
+										totalInputTokens: session.totalInputTokens,
+										totalOutputTokens: session.totalOutputTokens,
+										totalCacheReadTokens: session.totalCacheReadTokens,
+										totalCost: session.totalCost,
+									})
+								}
 							}
 							break
 						}

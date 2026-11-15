@@ -806,11 +806,17 @@ export class WorkspaceMcpServer {
 					maxBuffer: 4 * 1024 * 1024,
 					signal,
 				})
-				const combined = [stdout.trimEnd(), stderr.trimEnd()].filter(Boolean).join("\n")
+				let combined = [stdout.trimEnd(), stderr.trimEnd()].filter(Boolean).join("\n")
+				if (combined.length > 3000) {
+					combined = combined.slice(0, 1500) + "\n\n... [output truncated to protect context window] ...\n\n" + combined.slice(-1500)
+				}
 				outputs.push(`$ ${command}\n[exit 0]\n${combined || "(no output)"}`)
 			} catch (error) {
 				const err = error as { stdout?: string; stderr?: string; code?: number; message?: string }
-				const combined = [err.stdout?.trimEnd(), err.stderr?.trimEnd(), err.message].filter(Boolean).join("\n")
+				let combined = [err.stdout?.trimEnd(), err.stderr?.trimEnd(), err.message].filter(Boolean).join("\n")
+				if (combined.length > 3000) {
+					combined = combined.slice(0, 1500) + "\n\n... [output truncated to protect context window] ...\n\n" + combined.slice(-1500)
+				}
 				outputs.push(`$ ${command}\n[exit ${err.code ?? 1}]\n${combined}`)
 			}
 		}
