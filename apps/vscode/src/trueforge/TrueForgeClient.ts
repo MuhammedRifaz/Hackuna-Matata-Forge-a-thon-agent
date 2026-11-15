@@ -171,6 +171,7 @@ export class TrueForgeClient {
 			require_approval_for_tools: approvalList,
 		}
 
+		const isActMode = options.mode !== "plan"
 		const modeGuidance =
 			options.mode === "plan"
 				? "MODE: PLAN MODE — Inspect the codebase and formulate a clear plan before requesting edits."
@@ -187,6 +188,7 @@ export class TrueForgeClient {
 			"3. Do NOT run broad filesystem scans (find /, grep -r, ls /opt). Use `read_files` or `search_files` with workspace relative paths.",
 			"4. To verify changes with tests, run `pytest tests/test_cli.py -q` using `run_commands`.",
 			"5. Anti-Loop Rule: Work concisely and directly: 1) Propose edit in `src/flask/cli.py`, 2) Propose test in `tests/test_cli.py`, 3) Propose doc in `docs/cli.rst`, 4) Run pytest via `run_commands`. Once tests pass, present your final response to complete the task.",
+			"6. Autonomous Execution: Do NOT call `ask_user_question` or pause to ask permission when you have the task instruction. Proceed directly to inspect code, edit with `editor`, and verify with `pytest`.",
 		]
 			.filter((line) => line !== undefined)
 			.join("\n")
@@ -211,8 +213,8 @@ export class TrueForgeClient {
 					},
 					generative_ui: { enabled: false },
 					generativeUI: { enabled: false },
-					ask_user_questions: { enabled: true },
-					askUserQuestions: { enabled: true },
+					ask_user_questions: { enabled: !isActMode },
+					askUserQuestions: { enabled: !isActMode },
 					context_management: {
 						compaction: { enabled: true },
 						large_tool_response: { enabled: false },
@@ -290,6 +292,30 @@ export class TrueForgeClient {
 						toolCallId,
 						approval,
 					},
+				],
+			},
+			{ timeoutInSeconds: 15, maxRetries: 1 },
+		)
+	}
+
+	async submitToolResponse(
+		sessionId: string,
+		turnId: string,
+		threadId: string,
+		toolCallId: string,
+		content: string,
+	): Promise<void> {
+		await this.sdk.sessions.createTurnEvent(
+			sessionId,
+			turnId,
+			{
+				events: [
+					{
+						type: "user.tool_response",
+						threadId,
+						toolCallId,
+						content,
+					} as any,
 				],
 			},
 			{ timeoutInSeconds: 15, maxRetries: 1 },

@@ -373,6 +373,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				let openText = false
 				let activeSourceEventId = ""
 				let pendingApprovals: Array<{ threadId: string; toolCallId: string }> = []
+				let pendingToolResponses: Array<{ threadId: string; toolCallId: string }> = []
 				let turnErrorMessage: string | undefined
 				let turnCancelled = false
 				let currentTurnId = session.lastTurnId
@@ -542,6 +543,14 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 							break
 						}
 
+						case "tool.response_required": {
+							closeOpenTextAndReasoning()
+							for (const ref of (ev as any).toolCalls ?? []) {
+								pendingToolResponses.push({ threadId: (ev as any).threadId ?? "main", toolCallId: ref.id })
+							}
+							break
+						}
+
 						case "tool.response": {
 							const tc = toolCallsById.get(ev.toolCallId)
 							if (tc && !tc.startedEmitted) {
@@ -650,7 +659,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					return await this.buildAbortedResult(session, finalText, iterationCount, startedAt)
 				}
 
-				if (pendingApprovals.length === 0) {
+				if (pendingApprovals.length === 0 && pendingToolResponses.length === 0) {
 					this.mcpServer.commitSessionEdits()
 					session.status = "completed"
 					session.updatedAt = new Date().toISOString()
@@ -712,10 +721,45 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					})
 				}
 
+				// Resolve all requested tool responses (e.g. ask_user_question) via VS Code UI
+				const responseInputs: import("@truefoundry/trueforge-sdk").TrueForgeApi.TurnInputItem[] = []
+				for (const pending of pendingToolResponses) {
+					const tc = toolCallsById.get(pending.toolCallId)
+					const rawInput = (tc?.parsedInput && typeof tc.parsedInput === "object" ? tc.parsedInput : {}) as Record<string, unknown>
+					const questionText = String(rawInput.question ?? "Do you want to proceed?")
+					const questionOptions = Array.isArray(rawInput.options) ? rawInput.options.map(String) : ["Implement all parts now"]
+
+					let answer = "Implement all parts now"
+					if (this.options.askQuestion) {
+						try {
+							answer = await this.options.askQuestion(
+								questionText,
+								questionOptions,
+								{
+									toolCallId: pending.toolCallId,
+									agentId: session.agentName,
+									iteration: Math.max(1, iterationCount),
+									signal: abortController.signal,
+								},
+							)
+						} catch (qErr) {
+							Logger.warn(`[TrueForgeSessionHost] askQuestion interaction failed: ${qErr}`)
+							answer = questionOptions[0] ?? "Proceed"
+						}
+					}
+
+					responseInputs.push({
+						type: "user.tool_response",
+						threadId: pending.threadId,
+						toolCallId: pending.toolCallId,
+						content: answer || questionOptions[0] || "Proceed",
+					} as any)
+				}
+
 				if (currentTurnId) {
 					session.lastTurnId = currentTurnId
 				}
-				nextInput = approvalInputs
+				nextInput = [...approvalInputs, ...responseInputs]
 			}
 		} catch (error) {
 			if (abortController.signal.aborted) {
