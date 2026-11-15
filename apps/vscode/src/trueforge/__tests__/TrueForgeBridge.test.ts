@@ -44,6 +44,13 @@ describe("TrueForge VS Code Bridge", () => {
 				assert.ok(toolNames.includes("read_files"))
 				assert.ok(toolNames.includes("editor"))
 				assert.ok(toolNames.includes("run_commands"))
+				assert.ok(toolNames.includes("finish"))
+				assert.ok(toolNames.includes("complete_task"))
+				assert.ok(toolNames.includes("assemble_context"))
+
+				// Finish tool execution
+				const finishResult = await server.executeTool("finish", { summary: "Implemented task successfully" })
+				assert.equal(finishResult, "Implemented task successfully")
 
 				// Search tool
 				const searchText = await server.executeTool("search_files", { regex: "def greet" })

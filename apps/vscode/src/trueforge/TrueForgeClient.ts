@@ -105,8 +105,13 @@ export class TrueForgeClient {
 
 	/**
 	 * Registers or updates the local VS Code workspace MCP server in TrueForge Settings -> Connectors.
+	 * Explicitly forces a refresh so TrueForge discovers current tool definitions immediately.
 	 */
 	async ensureWorkspaceMcpServer(mcpUrl: string, serverName = VSCODE_MCP_SERVER_NAME): Promise<void> {
+		try {
+			await this.sdk.settings.mcpServers.delete(serverName, { timeoutInSeconds: 5, maxRetries: 0 }).catch(() => {})
+		} catch {}
+
 		await this.sdk.settings.mcpServers.createOrUpdate(
 			{
 				manifest: {
@@ -187,9 +192,9 @@ export class TrueForgeClient {
 			"2. The Python runtime and all project dependencies (including Flask) are already pre-configured in the workspace. Do NOT attempt to install packages or run package managers (pip, uv, apt).",
 			"3. Do NOT run broad filesystem scans (find /, grep -r, ls /opt). Use `read_files` or `search_files` with workspace relative paths.",
 			"4. To verify changes with tests, run `pytest tests/test_cli.py -q` using `run_commands`.",
-			"5. Anti-Loop Rule: Work concisely and directly: 1) Propose edit in `src/flask/cli.py`, 2) Propose test in `tests/test_cli.py`, 3) Propose doc in `docs/cli.rst`, 4) Run pytest via `run_commands`. Once tests pass, call `finish` with a summary to complete the task.",
+			"5. Anti-Loop Rule: Work concisely and directly: 1) Propose edit in `src/flask/cli.py`, 2) Propose test in `tests/test_cli.py`, 3) Propose doc in `docs/cli.rst`, 4) Run pytest via `run_commands`. Once tests pass, output your final summary directly in plain text to complete the task.",
 			"6. Autonomous Execution: Do NOT call `ask_user_question` or pause to ask permission when you have the task instruction. Proceed directly to inspect code, edit with `editor`, and verify with `pytest`.",
-			"7. CONTEXT ENGINEERING & ZERO-WASTE EXECUTION: The initial prompt includes pre-assembled AST focus context identifying the exact target files and line ranges. Do NOT run redundant exploratory reads (`read_files`) or shell searches (`grep`/`find`). Proceed DIRECTLY to proposing edits in the target files with `editor`, verify with `pytest tests/test_cli.py -q` via `run_commands`, and then call `finish`.",
+			"7. CONTEXT ENGINEERING & ZERO-WASTE EXECUTION: The initial prompt includes pre-assembled AST focus context identifying the exact target files and line ranges. Do NOT run redundant exploratory reads (`read_files`) or shell searches (`grep`/`find`). Proceed DIRECTLY to proposing edits in the target files with `editor`, verify with `pytest tests/test_cli.py -q` via `run_commands`, and then conclude with a concise summary in plain text.",
 		]
 			.filter((line) => line !== undefined)
 			.join("\n")
@@ -203,19 +208,19 @@ export class TrueForgeClient {
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
 				config: {
 					...baseManifest.config,
-					iteration_limit: 10,
-					iterationLimit: 10,
+					iteration_limit: 8,
+					iterationLimit: 8,
 					dynamic_sub_agents: { enabled: false },
 					dynamicSubAgents: { enabled: false },
 					sandbox: {
 						enabled: false,
-						file_downloads: true,
-						fileDownloads: true,
+						file_downloads: false,
+						fileDownloads: false,
 					},
 					generative_ui: { enabled: false },
 					generativeUI: { enabled: false },
-					ask_user_questions: { enabled: !isActMode },
-					askUserQuestions: { enabled: !isActMode },
+					ask_user_questions: { enabled: false },
+					askUserQuestions: { enabled: false },
 					context_management: {
 						compaction: { enabled: true },
 						large_tool_response: { enabled: false },
@@ -351,7 +356,7 @@ export class TrueForgeClient {
 			all.push(...(page.data as unknown as Array<{ turnId: string; event: Record<string, unknown> }>))
 		}
 		while (all.length < maxEvents && typeof (page as any).hasNextPage === "function" && (page as any).hasNextPage()) {
-			page = await (page as any).loadNextPage()
+			page = typeof (page as any).getNextPage === "function" ? await (page as any).getNextPage() : await (page as any).loadNextPage()
 			if (Array.isArray(page.data)) {
 				all.push(...(page.data as unknown as Array<{ turnId: string; event: Record<string, unknown> }>))
 			} else {

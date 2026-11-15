@@ -209,8 +209,12 @@ export const ChatRowContent = memo(
 
 		const [cost, _apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
-				const info: ClineApiReqInfo = JSON.parse(message.text)
-				return [info.cost, info.cancelReason, info.streamingFailedMessage]
+				try {
+					const info: ClineApiReqInfo = JSON.parse(message.text)
+					return [info.cost, info.cancelReason, info.streamingFailedMessage]
+				} catch {
+					return [undefined, undefined, undefined]
+				}
 			}
 			return [undefined, undefined, undefined]
 		}, [message.text, message.say])
@@ -325,7 +329,10 @@ export const ChatRowContent = memo(
 						<span className="font-bold text-foreground">Cline wants to execute this command:</span>,
 					]
 				case "use_mcp_server":
-					const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+					let mcpServerUse: ClineAskUseMcpServer = {} as any
+					try {
+						mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+					} catch {}
 					return [
 						isMcpServerResponding ? (
 							<ProgressIndicator />
@@ -353,7 +360,11 @@ export const ChatRowContent = memo(
 
 		const tool = useMemo(() => {
 			if (message.ask === "tool" || message.say === "tool") {
-				return JSON.parse(message.text || "{}") as ClineSayTool
+				try {
+					return JSON.parse(message.text || "{}") as ClineSayTool
+				} catch {
+					return null
+				}
 			}
 			return null
 		}, [message.ask, message.say, message.text])
@@ -765,7 +776,10 @@ export const ChatRowContent = memo(
 		}
 
 		if (message.ask === "use_mcp_server" || message.say === "use_mcp_server") {
-			const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+			let useMcpServer: ClineAskUseMcpServer = {} as any
+			try {
+				useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+			} catch {}
 			const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
 			return (
 				<div>
@@ -935,11 +949,14 @@ export const ChatRowContent = memo(
 							/>
 						)
 					case "user_feedback_diff":
-						const tool = JSON.parse(message.text || "{}") as ClineSayTool
+						let feedbackTool: ClineSayTool = {} as any
+						try {
+							feedbackTool = JSON.parse(message.text || "{}") as ClineSayTool
+						} catch {}
 						return (
 							<div className="w-full -mt-2.5">
 								<CodeAccordian
-									diff={tool.diff!}
+									diff={feedbackTool.diff || ""}
 									isExpanded={isExpanded}
 									isFeedback={true}
 									onToggleExpand={handleToggle}

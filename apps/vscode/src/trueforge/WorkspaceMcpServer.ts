@@ -233,6 +233,9 @@ export class WorkspaceMcpServer {
 	 */
 	async rollbackSessionEdits(): Promise<number> {
 		let count = 0
+		if (this.originalFileSnapshots.size === 0) {
+			return 0
+		}
 		for (const [absPath, snapshot] of this.originalFileSnapshots.entries()) {
 			try {
 				if (snapshot.existed && snapshot.content !== null) {
@@ -248,14 +251,16 @@ export class WorkspaceMcpServer {
 		}
 		this.originalFileSnapshots.clear()
 
-		try {
-			const workspaceRoot = await this.options.getWorkspaceRoot()
-			const { exec } = await import("child_process")
-			await new Promise<void>((resolve) => {
-				exec("git restore .", { cwd: workspaceRoot }, () => resolve())
-			})
-		} catch {
-			// Non-git workspace or git binary unavailable
+		if (count > 0) {
+			try {
+				const workspaceRoot = await this.options.getWorkspaceRoot()
+				const { exec } = await import("child_process")
+				await new Promise<void>((resolve) => {
+					exec("git restore .", { cwd: workspaceRoot }, () => resolve())
+				})
+			} catch {
+				// Non-git workspace or git binary unavailable
+			}
 		}
 
 		Logger.log(`[WorkspaceMcpServer] Rollback completed: ${count} files restored. Workspace is clean.`)

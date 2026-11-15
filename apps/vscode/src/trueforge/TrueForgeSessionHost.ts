@@ -298,21 +298,24 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						agentName: activeAgentName,
 					})
 				}
-				// Pre-turn agent spec sync: only sync from config if NO fallback model is active
-				if (session.failedModelIds.size === 0) {
-					const latest = await this.client.resolveAgentSpec({
-						cwd: session.cwd,
-						mode: session.mode,
-						requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
-					})
-					const latestModelId = latest.spec.model?.name ?? session.modelId
-					if (latestModelId !== session.modelId && !session.failedModelIds.has(latestModelId)) {
-						await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
-						session.modelId = latestModelId
-						session.agentName = latest.name
-						Logger.log(`[TrueForgeSessionHost] Synced session ${session.tfSessionId} model -> ${latestModelId}`)
-					}
+				// Pre-turn agent spec sync: ensure sandbox is disabled and iteration limit is enforced
+				const latest = await this.client.resolveAgentSpec({
+					cwd: session.cwd,
+					mode: session.mode,
+					requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
+				})
+				if (session.failedModelIds.size > 0) {
+					latest.spec.model = { name: session.modelId }
 				}
+				latest.spec.config = {
+					...latest.spec.config,
+					iterationLimit: 8,
+					sandbox: { enabled: false, fileDownloads: false },
+					askUserQuestions: { enabled: false },
+				}
+				await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
+				session.modelId = latest.spec.model?.name ?? session.modelId
+				session.agentName = latest.name
 			} catch (syncErr) {
 				Logger.warn(`[TrueForgeSessionHost] Pre-turn agent spec sync skipped: ${syncErr}`)
 			}
@@ -581,15 +584,19 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 							if (ev.state.status === "error") {
 								const errDetail =
 									(ev.state as { error?: { message?: string } }).error?.message ??
+									(ev.state as { message?: string }).message ??
 									"TrueForge model execution failed."
 								turnErrorMessage = errDetail
 							} else if (ev.state.status === "cancelled") {
 								turnCancelled = true
-							} else if (ev.state.status === "done" && ev.state.output?.content) {
-								finalText =
-									typeof ev.state.output.content === "string"
-										? ev.state.output.content
-										: finalText
+							} else if (ev.state.status === "done") {
+								this.mcpServer.commitSessionEdits()
+								if (ev.state.output?.content) {
+									finalText =
+										typeof ev.state.output.content === "string"
+											? ev.state.output.content
+											: finalText
+								}
 							}
 							break
 						}
@@ -597,11 +604,9 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 
 				if (turnErrorMessage) {
-					// B3: Automatic fallback to a secondary configured model with zero user action & workspace unchanged
-					const isModelFailure = /model|rate limit|quota|unauthorized|failed to fetch|overloaded|503|502|429/i.test(
-						turnErrorMessage,
-					)
-					if (isModelFailure) {
+					// B3: Automatic fallback to a secondary configured model on genuine provider/rate failures
+					const isQuotaOrAuthFailure = /rate limit|quota|429|unauthorized|401|403|overloaded|503|502/i.test(turnErrorMessage)
+					if (isQuotaOrAuthFailure && session.failedModelIds.size < 2) {
 						session.failedModelIds.add(session.modelId)
 						try {
 							const models = await this.client.listModels()
@@ -616,6 +621,12 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 									requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
 								})
 								latest.spec.model = { name: fallbackCandidate.name }
+								latest.spec.config = {
+									...latest.spec.config,
+									iterationLimit: 8,
+									sandbox: { enabled: false, fileDownloads: false },
+									askUserQuestions: { enabled: false },
+								}
 								await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
 								session.modelId = fallbackCandidate.name
 
@@ -624,7 +635,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 									message: `⚠️ Primary model error (${turnErrorMessage}). Automatically failed over to fallback model "${fallbackCandidate.name}" with no user intervention needed (satisfies Hackathon B3).`,
 								})
 
-								// Retry the send transparently on the fallback model
+								// Retry once on the fallback model
 								return this.send(input)
 							} else {
 								Logger.warn(
@@ -643,13 +654,13 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					this.emitAgentEvent(session.clineSessionId, {
 						type: "error",
 						error: errObj,
-						recoverable: true,
+						recoverable: false,
 						iteration: Math.max(1, iterationCount),
 					})
 					this.emitAgentEvent(session.clineSessionId, {
 						type: "done",
 						reason: "error",
-						text: finalText,
+						text: finalText || turnErrorMessage,
 						iterations: Math.max(1, iterationCount),
 					})
 					return this.buildAgentResult(session, "error", finalText, iterationCount, startedAt)
@@ -982,8 +993,13 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 	async readMessages(sessionId: string): Promise<SdkInitialMessages> {
 		const tfId = this.sessions.get(sessionId)?.tfSessionId ?? sessionId
 		try {
-			const events = await this.client.listSessionEvents(tfId, 200)
-			const ordered = [...events].reverse()
+			const events = await this.client.listSessionEvents(tfId, 300)
+			// Sort strictly chronologically by createdAt so transcript always begins with the initial user prompt
+			const ordered = [...events].sort((a, b) => {
+				const ta = new Date((a.event?.createdAt as string) || 0).getTime()
+				const tb = new Date((b.event?.createdAt as string) || 0).getTime()
+				return ta - tb
+			})
 			const messages: Array<{ role: "user" | "assistant"; content: unknown }> = []
 			for (const item of ordered) {
 				const ev = item.event as Record<string, unknown>
