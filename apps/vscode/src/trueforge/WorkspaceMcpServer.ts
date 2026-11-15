@@ -1,4 +1,5 @@
 import { exec } from "node:child_process"
+import * as fsSync from "node:fs"
 import * as fs from "node:fs/promises"
 import * as http from "node:http"
 import * as path from "node:path"
@@ -436,16 +437,21 @@ export class WorkspaceMcpServer {
 
 		switch (toolName) {
 			case "read_files":
+			case "read_file":
 				return this.handleReadFiles(args, workspaceRoot, toolContext)
 			case "list_files":
+			case "list_dir":
 				return this.handleListFiles(args, workspaceRoot)
 			case "search_files":
+			case "file_search":
 				return this.handleSearchFiles(args, workspaceRoot)
 			case "editor":
 				return this.handleEditor(args, workspaceRoot, toolContext)
 			case "write_to_file":
 				return this.handleWriteToFile(args, workspaceRoot, toolContext)
 			case "run_commands":
+			case "run_command":
+			case "execute_command":
 				return this.handleRunCommands(args, workspaceRoot, toolContext.signal)
 			case "assemble_context":
 				return this.handleAssembleContext(args)
@@ -655,6 +661,19 @@ export class WorkspaceMcpServer {
 		} catch {
 			existing = undefined
 		}
+
+		// Safeguard against catastrophic truncation: if overwriting a large file (>50 lines)
+		// with a small snippet (<25 lines), reject and direct model to use editor tool.
+		if (existing !== undefined) {
+			const existingLines = existing.split("\n").length
+			const newLines = content.split("\n").length
+			if (existingLines > 50 && newLines < 25) {
+				throw new Error(
+					`Refusing write_to_file: '${rawPath}' contains ${existingLines} lines, but write_to_file was given only ${newLines} lines. To safely modify parts of an existing file without truncating it, use the 'editor' tool with 'old_text' and 'new_text'.`
+				)
+			}
+		}
+
 		const editInput: EditFileInput =
 			existing !== undefined ? { path: rawPath, old_text: existing, new_text: content } : { path: rawPath, new_text: content }
 
@@ -705,6 +724,37 @@ export class WorkspaceMcpServer {
 		const extraPaths = [workspaceRoot, srcPath]
 		const sep = isWin ? ";" : ":"
 		env.PYTHONPATH = env.PYTHONPATH ? `${extraPaths.join(sep)}${sep}${env.PYTHONPATH}` : extraPaths.join(sep)
+
+		// Discover and prepend active Python interpreter environment (e.g. Python 3.14 or virtual environments)
+		if (isWin) {
+			const py314 = "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python314"
+			const py314Scripts = path.join(py314, "Scripts")
+			const venvScripts = path.join(workspaceRoot, ".venv", "Scripts")
+			const venvScripts2 = path.join(workspaceRoot, "venv", "Scripts")
+			const prependPaths = [venvScripts, venvScripts2, py314, py314Scripts].filter((p) => {
+				try {
+					return fsSync.existsSync(p)
+				} catch {
+					return false
+				}
+			})
+			if (prependPaths.length > 0) {
+				env.PATH = `${prependPaths.join(";")};${env.PATH || ""}`
+			}
+		} else {
+			const venvBin = path.join(workspaceRoot, ".venv", "bin")
+			const venvBin2 = path.join(workspaceRoot, "venv", "bin")
+			const prependPaths = [venvBin, venvBin2].filter((p) => {
+				try {
+					return fsSync.existsSync(p)
+				} catch {
+					return false
+				}
+			})
+			if (prependPaths.length > 0) {
+				env.PATH = `${prependPaths.join(":")}:${env.PATH || ""}`
+			}
+		}
 
 		for (const command of rawCommands) {
 			if (this.options.runCommandExecutor) {

@@ -161,11 +161,14 @@ export class TrueForgeClient {
 
 		const mcpServerName = options.mcpServerName ?? VSCODE_MCP_SERVER_NAME
 		const existingMcpServers = (baseManifest.mcpServers ?? []).filter((srv) => srv.name !== mcpServerName)
-		const workspaceMcpEntry: TrueForgeApi.McpServer = {
+		const approvalList = options.requireApprovalForTools ?? ["editor", "write_to_file", "run_commands"]
+		const workspaceMcpEntry: any = {
 			name: mcpServerName,
 			preload: true,
 			enableTools: ["@all"],
-			requireApprovalForTools: options.requireApprovalForTools ?? ["editor", "write_to_file", "run_commands"],
+			enable_tools: ["@all"],
+			requireApprovalForTools: approvalList,
+			require_approval_for_tools: approvalList,
 		}
 
 		const modeGuidance =
@@ -197,17 +200,28 @@ export class TrueForgeClient {
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
 				config: {
 					...baseManifest.config,
+					iteration_limit: 15,
 					iterationLimit: 15,
+					dynamic_sub_agents: { enabled: false },
 					dynamicSubAgents: { enabled: false },
 					sandbox: {
 						enabled: false,
+						file_downloads: true,
 						fileDownloads: true,
+					},
+					generative_ui: { enabled: false },
+					generativeUI: { enabled: false },
+					ask_user_questions: { enabled: true },
+					askUserQuestions: { enabled: true },
+					context_management: {
+						compaction: { enabled: true },
+						large_tool_response: { enabled: false },
 					},
 					contextManagement: {
 						compaction: { enabled: true },
-						largeToolResponse: { enabled: true },
+						largeToolResponse: { enabled: false },
 					},
-				},
+				} as any,
 			},
 		}
 	}

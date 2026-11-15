@@ -1,5 +1,6 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect } from "react"
+import ChatErrorBoundary from "./components/chat/ChatErrorBoundary"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
@@ -83,7 +84,14 @@ const AppContent = () => {
 	}, [navigateToContext])
 
 	if (!didHydrateState) {
-		return null
+		return (
+			<div className="flex h-screen w-full items-center justify-center p-4 text-center text-vscode-descriptionForeground">
+				<div className="flex flex-col items-center gap-2">
+					<div className="animate-spin text-xl">⏳</div>
+					<div className="text-sm">Connecting to workspace...</div>
+				</div>
+			</div>
+		)
 	}
 
 	if (showWelcome) {
@@ -129,7 +137,9 @@ const AppContent = () => {
 const App = () => {
 	return (
 		<Providers>
-			<AppContent />
+			<ChatErrorBoundary errorTitle="TrueForge Agent View Error" errorBody="An unexpected rendering issue occurred. Reload the window or start a new task.">
+				<AppContent />
+			</ChatErrorBoundary>
 		</Providers>
 	)
 }
