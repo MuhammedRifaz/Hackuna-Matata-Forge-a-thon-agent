@@ -999,8 +999,28 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 							}
 						}
 					}
-				} else if (ev.type === "model.message" && typeof ev.content === "string" && ev.content.trim()) {
-					messages.push({ role: "assistant", content: [{ type: "text", text: ev.content }] })
+				} else if (ev.type === "model.message") {
+					const text =
+						typeof ev.content === "string" && ev.content.trim()
+							? ev.content
+							: typeof ev.reasoningContent === "string" && ev.reasoningContent.trim()
+								? ev.reasoningContent
+								: typeof (ev as any).reasoning_content === "string" && (ev as any).reasoning_content.trim()
+									? (ev as any).reasoning_content
+									: undefined
+					if (text) {
+						messages.push({ role: "assistant", content: [{ type: "text", text }] })
+					}
+				} else if (ev.type === "turn.done") {
+					const state = ev.state as Record<string, unknown> | undefined
+					const outputContent = (state?.output as Record<string, unknown> | undefined)?.content
+					if (typeof outputContent === "string" && outputContent.trim()) {
+						const lastMsg = messages[messages.length - 1]
+						const lastText = (lastMsg?.content as Array<{ text?: string } | undefined>)?.[0]?.text
+						if (lastText !== outputContent) {
+							messages.push({ role: "assistant", content: [{ type: "text", text: outputContent }] })
+						}
+					}
 				}
 			}
 			return messages as unknown as SdkInitialMessages

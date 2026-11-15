@@ -153,6 +153,26 @@ const TOOL_DEFINITIONS: McpToolDefinition[] = [
 			required: ["query"],
 		},
 	},
+	{
+		name: "finish",
+		description: "Signal that the task or objective has been successfully completed with a summary of the accomplishments.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				summary: { type: "string", description: "Summary of changes made and verification performed." },
+			},
+		},
+	},
+	{
+		name: "complete_task",
+		description: "Signal that the task has been completed.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				summary: { type: "string", description: "Summary of changes made." },
+			},
+		},
+	},
 ]
 
 function resolveWorkspacePath(workspaceRoot: string, inputPath: string): string {
@@ -455,6 +475,9 @@ export class WorkspaceMcpServer {
 				return this.handleRunCommands(args, workspaceRoot, toolContext.signal)
 			case "assemble_context":
 				return this.handleAssembleContext(args)
+			case "finish":
+			case "complete_task":
+				return args.summary ? String(args.summary) : "Task completed successfully."
 			default:
 				throw new Error(`Unknown workspace tool: ${toolName}`)
 		}

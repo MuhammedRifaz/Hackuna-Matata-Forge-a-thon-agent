@@ -342,9 +342,22 @@ export class TrueForgeClient {
 		}
 	}
 
-	async listSessionEvents(sessionId: string, limit = 100): Promise<Array<{ turnId: string; event: Record<string, unknown> }>> {
-		const page = await this.sdk.sessions.listEvents(sessionId, { limit }, { timeoutInSeconds: 10, maxRetries: 0 })
-		return page.data as unknown as Array<{ turnId: string; event: Record<string, unknown> }>
+	async listSessionEvents(sessionId: string, maxEvents = 100): Promise<Array<{ turnId: string; event: Record<string, unknown> }>> {
+		const all: Array<{ turnId: string; event: Record<string, unknown> }> = []
+		const pageSize = Math.min(100, Math.max(1, maxEvents))
+		let page = await this.sdk.sessions.listEvents(sessionId, { limit: pageSize }, { timeoutInSeconds: 10, maxRetries: 0 })
+		if (Array.isArray(page.data)) {
+			all.push(...(page.data as unknown as Array<{ turnId: string; event: Record<string, unknown> }>))
+		}
+		while (all.length < maxEvents && typeof (page as any).hasNextPage === "function" && (page as any).hasNextPage()) {
+			page = await (page as any).loadNextPage()
+			if (Array.isArray(page.data)) {
+				all.push(...(page.data as unknown as Array<{ turnId: string; event: Record<string, unknown> }>))
+			} else {
+				break
+			}
+		}
+		return all
 	}
 
 	async deleteSession(sessionId: string): Promise<boolean> {
