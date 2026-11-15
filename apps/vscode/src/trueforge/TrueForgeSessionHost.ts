@@ -83,6 +83,7 @@ interface ActiveTrueForgeSession {
 	totalOutputTokens: number
 	totalCacheReadTokens: number
 	totalCost: number
+	failedModelIds: Set<string>
 }
 
 function parseJsonSafe(raw: string): unknown {
@@ -240,6 +241,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				totalOutputTokens: 0,
 				totalCacheReadTokens: 0,
 				totalCost: 0,
+				failedModelIds: new Set<string>(),
 			})
 
 			Logger.log(
@@ -588,9 +590,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						turnErrorMessage,
 					)
 					if (isModelFailure) {
+						session.failedModelIds.add(session.modelId)
 						try {
 							const models = await this.client.listModels()
-							const fallbackCandidate = models.find((m: { name: string }) => m.name !== session.modelId)
+							const fallbackCandidate = models.find((m: { name: string }) => !session.failedModelIds.has(m.name))
 							if (fallbackCandidate) {
 								Logger.log(
 									`[TrueForgeSessionHost] [B3 Fallback] Triggering automatic failover from ${session.modelId} -> ${fallbackCandidate.name}`,
@@ -611,6 +614,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 								// Retry the send transparently on the fallback model
 								return this.send(input)
+							} else {
+								Logger.warn(
+									`[TrueForgeSessionHost] [B3 Fallback] All configured models exhausted: ${Array.from(session.failedModelIds).join(", ")}`,
+								)
 							}
 						} catch (fallbackErr) {
 							Logger.error(`[TrueForgeSessionHost] [B3 Fallback] Failover attempt failed: ${fallbackErr}`)
@@ -719,9 +726,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				formatted.message,
 			)
 			if (isModelFailure) {
+				session.failedModelIds.add(session.modelId)
 				try {
 					const models = await this.client.listModels()
-					const fallbackCandidate = models.find((m: { name: string }) => m.name !== session.modelId)
+					const fallbackCandidate = models.find((m: { name: string }) => !session.failedModelIds.has(m.name))
 					if (fallbackCandidate) {
 						Logger.log(
 							`[TrueForgeSessionHost] [B3 Fallback] Triggering automatic failover from ${session.modelId} -> ${fallbackCandidate.name}`,
@@ -742,6 +750,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 						// Retry the send transparently on the fallback model
 						return this.send(input)
+					} else {
+						Logger.warn(
+							`[TrueForgeSessionHost] [B3 Fallback] All configured models exhausted: ${Array.from(session.failedModelIds).join(", ")}`,
+						)
 					}
 				} catch (fallbackErr) {
 					Logger.error(`[TrueForgeSessionHost] [B3 Fallback] Failover attempt failed: ${fallbackErr}`)

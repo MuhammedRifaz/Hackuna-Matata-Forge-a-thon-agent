@@ -178,12 +178,12 @@ export class TrueForgeClient {
 			"",
 			`VS Code Workspace Root: ${options.cwd}`,
 			modeGuidance,
-			"Context Engineering & Execution Protocol (Fast & Token-Optimized):",
-			"- Prioritize the curated AST snippets provided in the prompt or call `assemble_context` to locate definitions.",
-			"- Do NOT dump or read entire 1,000+ line files with `read_files` when targeted line ranges or `assemble_context` are available.",
-			"- Apply code changes concisely with `editor` using exact unique `old_text` and `new_text`.",
-			"- Verification & Tool Discipline: Use `run_commands` to run targeted test commands (e.g. `pytest tests/...`).",
-			"- Anti-Loop Rule: If a command or test fails due to external environment configuration or missing runtime dependencies, do not repeatedly guess or retry shell commands. Explain the result, complete the task, and present the final summary to the user immediately.",
+			"CRITICAL WORKSPACE EXECUTION RULES (Strict Token & Flow Discipline):",
+			"1. ALWAYS use the `editor` MCP tool (or `write_to_file`) to propose changes to workspace files. NEVER attempt to write or edit files using terminal or shell commands (cat, sed, echo, etc.). Proposing edits via `editor` is strictly required so diff previews are rendered in the editor for user review.",
+			"2. The Python runtime and all project dependencies (including Flask) are already pre-configured in the workspace. Do NOT attempt to install packages or run package managers (pip, uv, apt).",
+			"3. Do NOT run broad filesystem scans (find /, grep -r, ls /opt). Use `read_files` or `search_files` with workspace relative paths.",
+			"4. To verify changes with tests, run `pytest tests/test_cli.py -q` using `run_commands`.",
+			"5. Anti-Loop Rule: Work concisely and directly: 1) Propose edit in `src/flask/cli.py`, 2) Propose test in `tests/test_cli.py`, 3) Propose doc in `docs/cli.rst`, 4) Run pytest via `run_commands`. Once tests pass, present your final response to complete the task.",
 		]
 			.filter((line) => line !== undefined)
 			.join("\n")
@@ -200,8 +200,7 @@ export class TrueForgeClient {
 					iterationLimit: 15,
 					dynamicSubAgents: { enabled: false },
 					sandbox: {
-						enabled: true,
-						environmentName: "default",
+						enabled: false,
 						fileDownloads: true,
 					},
 					contextManagement: {
