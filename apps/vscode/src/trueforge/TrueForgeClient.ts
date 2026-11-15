@@ -166,7 +166,7 @@ export class TrueForgeClient {
 
 		const mcpServerName = options.mcpServerName ?? VSCODE_MCP_SERVER_NAME
 		const existingMcpServers = (baseManifest.mcpServers ?? []).filter((srv) => srv.name !== mcpServerName)
-		const approvalList = options.requireApprovalForTools ?? ["editor", "write_to_file", "run_commands"]
+		const approvalList = options.requireApprovalForTools ?? []
 		const workspaceMcpEntry: any = {
 			name: mcpServerName,
 			preload: true,
@@ -208,8 +208,8 @@ export class TrueForgeClient {
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
 				config: {
 					...baseManifest.config,
-					iteration_limit: 8,
-					iterationLimit: 8,
+					iteration_limit: 15,
+					iterationLimit: 15,
 					dynamic_sub_agents: { enabled: false },
 					dynamicSubAgents: { enabled: false },
 					sandbox: {

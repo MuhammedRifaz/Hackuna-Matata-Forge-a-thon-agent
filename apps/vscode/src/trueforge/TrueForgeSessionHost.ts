@@ -220,7 +220,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			const resolved = await this.client.resolveAgentSpec({
 				cwd,
 				mode,
-				requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
+				requireApprovalForTools: [],
 			})
 			const tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
 
@@ -302,14 +302,14 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				const latest = await this.client.resolveAgentSpec({
 					cwd: session.cwd,
 					mode: session.mode,
-					requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
+					requireApprovalForTools: [],
 				})
 				if (session.failedModelIds.size > 0) {
 					latest.spec.model = { name: session.modelId }
 				}
 				latest.spec.config = {
 					...latest.spec.config,
-					iterationLimit: 8,
+					iterationLimit: 15,
 					sandbox: { enabled: false, fileDownloads: false },
 					askUserQuestions: { enabled: false },
 				}
@@ -618,12 +618,12 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								const latest = await this.client.resolveAgentSpec({
 									cwd: session.cwd,
 									mode: session.mode,
-									requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
+									requireApprovalForTools: [],
 								})
 								latest.spec.model = { name: fallbackCandidate.name }
 								latest.spec.config = {
 									...latest.spec.config,
-									iterationLimit: 8,
+									iterationLimit: 15,
 									sandbox: { enabled: false, fileDownloads: false },
 									askUserQuestions: { enabled: false },
 								}
@@ -800,7 +800,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						const latest = await this.client.resolveAgentSpec({
 							cwd: session.cwd,
 							mode: session.mode,
-							requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
+							requireApprovalForTools: [],
 						})
 						latest.spec.model = { name: fallbackCandidate.name }
 						await this.client.updateSessionAgent(session.tfSessionId, latest.spec)

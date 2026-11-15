@@ -38,17 +38,24 @@ class ChatErrorBoundary extends React.Component<ChatErrorBoundaryProps, ChatErro
 			return (
 				<div
 					style={{
-						padding: "10px",
+						padding: "12px",
 						color: "var(--vscode-errorForeground)",
 						height: height || "auto",
-						maxWidth: "512px",
+						maxWidth: "100%",
 						overflow: "auto",
 						border: "1px solid var(--vscode-editorError-foreground)",
 						borderRadius: "4px",
 						backgroundColor: "var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1))",
 					}}>
 					<h3 style={{ margin: "0 0 8px 0" }}>{errorTitle || "Something went wrong displaying this content"}</h3>
-					<p style={{ margin: "0" }}>{errorBody || `Error: ${this.state.error?.message || "Unknown error"}`}</p>
+					<p style={{ margin: "0 0 8px 0", fontWeight: "bold" }}>
+						{this.state.error?.message || errorBody || "Unknown error"}
+					</p>
+					{this.state.error?.stack && (
+						<pre style={{ margin: "0", fontSize: "11px", whiteSpace: "pre-wrap", maxHeight: "250px", overflow: "auto", opacity: 0.85 }}>
+							{this.state.error.stack}
+						</pre>
+					)}
 				</div>
 			)
 		}
