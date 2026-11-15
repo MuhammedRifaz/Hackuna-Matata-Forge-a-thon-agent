@@ -195,6 +195,7 @@ export class TrueForgeClient {
 			"5. Anti-Loop Rule: Work concisely and directly: 1) Propose edit in `src/flask/cli.py`, 2) Propose test in `tests/test_cli.py`, 3) Propose doc in `docs/cli.rst`, 4) Run pytest via `run_commands`. Once tests pass, output your final summary directly in plain text to complete the task.",
 			"6. Autonomous Execution: Do NOT call `ask_user_question` or pause to ask permission when you have the task instruction. Proceed directly to inspect code, edit with `editor`, and verify with `pytest`.",
 			"7. CONTEXT ENGINEERING & ZERO-WASTE EXECUTION: The initial prompt includes pre-assembled AST focus context identifying the exact target files and line ranges. Do NOT run redundant exploratory reads (`read_files`) or shell searches (`grep`/`find`). Proceed DIRECTLY to proposing edits in the target files with `editor`, verify with `pytest tests/test_cli.py -q` via `run_commands`, and then conclude with a concise summary in plain text.",
+			"8. DYNAMIC SUBAGENT DELEGATION: If extensive searches, file comparisons, or diagnostic investigations across multiple files are needed, call `create_sub_agent` to perform the exploratory work in an isolated child thread. When the subagent finishes, only its concise outcome returns to you, keeping your main context window minimal and clean.",
 		]
 			.filter((line) => line !== undefined)
 			.join("\n")
@@ -210,8 +211,8 @@ export class TrueForgeClient {
 					...baseManifest.config,
 					iteration_limit: 15,
 					iterationLimit: 15,
-					dynamic_sub_agents: { enabled: false },
-					dynamicSubAgents: { enabled: false },
+					dynamic_sub_agents: { enabled: true },
+					dynamicSubAgents: { enabled: true },
 					sandbox: {
 						enabled: false,
 						file_downloads: false,
@@ -223,11 +224,11 @@ export class TrueForgeClient {
 					askUserQuestions: { enabled: false },
 					context_management: {
 						compaction: { enabled: true },
-						large_tool_response: { enabled: false },
+						large_tool_response: { enabled: true },
 					},
 					contextManagement: {
 						compaction: { enabled: true },
-						largeToolResponse: { enabled: false },
+						largeToolResponse: { enabled: true },
 					},
 				} as any,
 			},

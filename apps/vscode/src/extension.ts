@@ -533,6 +533,13 @@ ${ctx.cellJson || "{}"}
 		vscode.commands.registerCommand("cline.resetWorkspace", async () => {
 			await vscode.commands.executeCommand("trueforge.resetWorkspace")
 		}),
+		vscode.commands.registerCommand("pacior.inlineEdit", async () => {
+			const { executePaciorInlineEdit } = await import("./trueforge/PaciorInlineEditor")
+			await executePaciorInlineEdit()
+		}),
+		vscode.commands.registerCommand("cline.inlineEdit", async () => {
+			await vscode.commands.executeCommand("pacior.inlineEdit")
+		}),
 	)
 
 	// Listen for secrets changes (cross-window login/logout sync).

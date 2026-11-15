@@ -180,6 +180,11 @@
 				"category": "Pacior Code"
 			},
 			{
+				"command": "pacior.inlineEdit",
+				"title": "Inline Edit Selection",
+				"category": "Pacior Code"
+			},
+			{
 				"command": "cline.addTerminalOutputToChat",
 				"title": "Add to Pacior Code",
 				"category": "Pacior Code"
@@ -237,6 +242,14 @@
 		],
 		"keybindings": [
 			{
+				"command": "pacior.inlineEdit",
+				"key": "cmd+i",
+				"mac": "cmd+i",
+				"win": "ctrl+i",
+				"linux": "ctrl+i",
+				"when": "editorTextFocus"
+			},
+			{
 				"command": "cline.addToChat",
 				"key": "cmd+'",
 				"mac": "cmd+'",
@@ -287,8 +300,13 @@
 			],
 			"editor/context": [
 				{
+					"command": "pacior.inlineEdit",
+					"group": "navigation@1",
+					"when": "editorTextFocus"
+				},
+				{
 					"command": "cline.addToChat",
-					"group": "navigation",
+					"group": "navigation@2",
 					"when": "editorHasSelection"
 				}
 			],
