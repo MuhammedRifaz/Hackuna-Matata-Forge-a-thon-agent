@@ -303,13 +303,15 @@ export class PaciorContextEngine {
 				if (file.startsWith("tests/")) score += 20
 				if (file.startsWith("docs/")) score += 15
 
+				// Consolidate reasons into unique terms
+				const uniqueReasons = Array.from(new Set(reasons))
 				if (score > 0) {
 					candidates.push({
 						file,
 						start_line: sym.start_line,
 						end_line: sym.end_line,
 						score,
-						reason: reasons.slice(0, 3).join("; "),
+						reason: uniqueReasons.slice(0, 2).join("; "),
 						type: "symbol",
 					})
 				}

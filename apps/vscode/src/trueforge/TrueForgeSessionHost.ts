@@ -325,21 +325,17 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				let promptText = input.prompt
 
 				// Auto Context Assembly Optimization:
-				// Only assemble on Turn 1 (initial request). Never re-inject bloated tokens on continuation/resume turns.
+				// Only assemble on Turn 1 (initial request). Keep concise to stay strictly within context budget.
 				if (!session.lastTurnId) {
 					try {
 						const { PaciorContextEngine } = await import("@/context/PaciorContextEngine")
 						const engine = PaciorContextEngine.getInstance()
 						const cache = engine.getCache()
 						if (cache && Object.keys(cache.fileMap).length > 0) {
-							const packed = await engine.assembleContext(promptText, 1800)
+							const packed = await engine.assembleContext(promptText, 900)
 							if (packed.snippets.length > 0) {
-								promptText += `\n\n[Pacior Context Engineering - Assembled Focus Context (${packed.totalEstimatedTokens} tokens)]:`
-								for (const exp of packed.explainability.slice(0, 5)) {
-									promptText += `\n- ${exp}`
-								}
-								promptText += `\n\nRelevant AST & Doc Snippets:`
-								for (const s of packed.snippets.slice(0, 4)) {
+								promptText += `\n\n[Context Focus Snippets (${packed.totalEstimatedTokens} tokens)]:`
+								for (const s of packed.snippets.slice(0, 3)) {
 									promptText += `\n--- ${s.path} (L${s.lines[0]}-L${s.lines[1]}) ---\n${s.content}\n`
 								}
 							}
