@@ -187,8 +187,9 @@ export class TrueForgeClient {
 			"2. The Python runtime and all project dependencies (including Flask) are already pre-configured in the workspace. Do NOT attempt to install packages or run package managers (pip, uv, apt).",
 			"3. Do NOT run broad filesystem scans (find /, grep -r, ls /opt). Use `read_files` or `search_files` with workspace relative paths.",
 			"4. To verify changes with tests, run `pytest tests/test_cli.py -q` using `run_commands`.",
-			"5. Anti-Loop Rule: Work concisely and directly: 1) Propose edit in `src/flask/cli.py`, 2) Propose test in `tests/test_cli.py`, 3) Propose doc in `docs/cli.rst`, 4) Run pytest via `run_commands`. Once tests pass, present your final response to complete the task.",
+			"5. Anti-Loop Rule: Work concisely and directly: 1) Propose edit in `src/flask/cli.py`, 2) Propose test in `tests/test_cli.py`, 3) Propose doc in `docs/cli.rst`, 4) Run pytest via `run_commands`. Once tests pass, call `finish` with a summary to complete the task.",
 			"6. Autonomous Execution: Do NOT call `ask_user_question` or pause to ask permission when you have the task instruction. Proceed directly to inspect code, edit with `editor`, and verify with `pytest`.",
+			"7. CONTEXT ENGINEERING & ZERO-WASTE EXECUTION: The initial prompt includes pre-assembled AST focus context identifying the exact target files and line ranges. Do NOT run redundant exploratory reads (`read_files`) or shell searches (`grep`/`find`). Proceed DIRECTLY to proposing edits in the target files with `editor`, verify with `pytest tests/test_cli.py -q` via `run_commands`, and then call `finish`.",
 		]
 			.filter((line) => line !== undefined)
 			.join("\n")
@@ -202,8 +203,8 @@ export class TrueForgeClient {
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
 				config: {
 					...baseManifest.config,
-					iteration_limit: 15,
-					iterationLimit: 15,
+					iteration_limit: 10,
+					iterationLimit: 10,
 					dynamic_sub_agents: { enabled: false },
 					dynamicSubAgents: { enabled: false },
 					sandbox: {

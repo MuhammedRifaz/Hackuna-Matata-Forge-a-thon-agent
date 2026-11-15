@@ -226,7 +226,7 @@ export class PaciorContextEngine {
 	 * Knapsack Context Packing
 	 * Selects the highest scoring snippets and packs them strictly within the tokenBudget.
 	 */
-	public async assembleContext(query: string, tokenBudget = 3500): Promise<{
+	public async assembleContext(query: string, tokenBudget = 1800): Promise<{
 		snippets: Array<{ path: string; lines: [number, number]; score: number; reason: string; content: string }>
 		totalEstimatedTokens: number
 		explainability: string[]
@@ -235,11 +235,17 @@ export class PaciorContextEngine {
 			return { snippets: [], totalEstimatedTokens: 0, explainability: ["Cache not ready, fallback active."] }
 		}
 
+		const STOP_WORDS = new Set([
+			"the", "and", "that", "this", "with", "for", "from", "are", "was", "will", "have", "has", "had",
+			"not", "but", "all", "any", "can", "must", "other", "into", "also", "your", "its", "each", "both",
+			"than", "then", "them", "these", "those", "over", "such", "after", "when", "where", "which"
+		])
+
 		const keywords = query
 			.toLowerCase()
 			.replace(/[^a-z0-9_]/g, " ")
 			.split(/\s+/)
-			.filter((k) => k.length > 2)
+			.filter((k) => k.length > 2 && !STOP_WORDS.has(k))
 
 		interface Candidate {
 			file: string
@@ -252,9 +258,15 @@ export class PaciorContextEngine {
 
 		const candidates: Candidate[] = []
 
-		// 1. Score symbols from AST
+		// 1. Score symbols from AST & Docs
 		for (const [file, entry] of Object.entries(this.cache.fileMap)) {
 			const symbols = entry.summary.symbols || []
+			const fileLower = file.toLowerCase()
+			let fileMatches = 0
+			for (const kw of keywords) {
+				if (fileLower.includes(kw)) fileMatches++
+			}
+
 			for (const sym of symbols) {
 				let score = 0
 				const reasons: string[] = []
@@ -262,10 +274,10 @@ export class PaciorContextEngine {
 
 				for (const kw of keywords) {
 					if (symNameLower === kw) {
-						score += 50
+						score += 60
 						reasons.push(`Exact match for symbol '${kw}'`)
 					} else if (symNameLower.includes(kw)) {
-						score += 25
+						score += 30
 						reasons.push(`Symbol '${sym.name}' contains '${kw}'`)
 					}
 					if (sym.docstring && sym.docstring.toLowerCase().includes(kw)) {
@@ -274,26 +286,43 @@ export class PaciorContextEngine {
 					}
 				}
 
+				if (sym.methods) {
+					for (const m of sym.methods) {
+						for (const kw of keywords) {
+							if (m.name.toLowerCase().includes(kw)) {
+								score += 20
+								reasons.push(`Method '${m.name}' matches '${kw}'`)
+							}
+						}
+					}
+				}
+
+				// Priority boost based on file path keyword alignment and directory tier
+				score += fileMatches * 20
+				if (file.startsWith("src/flask/")) score += 20
+				if (file.startsWith("tests/")) score += 20
+				if (file.startsWith("docs/")) score += 15
+
 				if (score > 0) {
 					candidates.push({
 						file,
 						start_line: sym.start_line,
 						end_line: sym.end_line,
 						score,
-						reason: reasons.join("; "),
+						reason: reasons.slice(0, 3).join("; "),
 						type: "symbol",
 					})
 				}
 			}
 
-			// Path matching
+			// Path keyword matching fallback
 			for (const kw of keywords) {
-				if (file.toLowerCase().includes(kw)) {
+				if (fileLower.includes(kw)) {
 					candidates.push({
 						file,
 						start_line: 1,
-						end_line: Math.min(100, entry.summary.line_count),
-						score: 20,
+						end_line: Math.min(80, entry.summary.line_count),
+						score: 25 + fileMatches * 10,
 						reason: `File path matches query keyword '${kw}'`,
 						type: "skeleton",
 					})
@@ -302,65 +331,59 @@ export class PaciorContextEngine {
 			}
 		}
 
-		// 2. Add 1-hop dependencies with moderate score
-		const topFiles = new Set(candidates.slice(0, 5).map((c) => c.file))
-		for (const topFile of topFiles) {
-			const deps = this.cache.dependencyGraph[topFile] || []
-			for (const dep of deps.slice(0, 3)) {
-				candidates.push({
-					file: dep,
-					start_line: 1,
-					end_line: Math.min(60, this.cache.fileMap[dep]?.summary?.line_count || 60),
-					score: 15,
-					reason: `Direct dependency of top hit '${topFile}'`,
-					type: "skeleton",
-				})
-			}
-		}
-
 		// Sort by score descending
 		candidates.sort((a, b) => b.score - a.score)
 
-		// 3. Knapsack packing up to tokenBudget
+		// 2. Diversity Knapsack context packing across distinct files
 		let currentTokens = 0
 		const packedSnippets: Array<{ path: string; lines: [number, number]; score: number; reason: string; content: string }> = []
 		const explainability: string[] = []
 		const seenSpans = new Set<string>()
+		const fileSnippetCounts = new Map<string, number>()
 
 		for (const cand of candidates) {
 			const spanKey = `${cand.file}:${cand.start_line}-${cand.end_line}`
 			if (seenSpans.has(spanKey)) continue
-			seenSpans.add(spanKey)
+
+			// Max 2 snippets per file to enforce diversity across 3+ files (Task B requirement)
+			const fileCount = fileSnippetCounts.get(cand.file) || 0
+			if (fileCount >= 2) continue
 
 			try {
 				const fullPath = path.isAbsolute(cand.file) ? cand.file : path.join(this.workspaceRoot, cand.file)
 				const fileText = await fs.readFile(fullPath, "utf-8")
 				const lines = fileText.split("\n")
-				const snippetLines = lines.slice(Math.max(0, cand.start_line - 1), cand.end_line)
+				// Keep snippet to at most 60 lines to preserve token budget
+				const actualEnd = Math.min(lines.length, Math.min(cand.end_line, cand.start_line + 60))
+				const snippetLines = lines.slice(Math.max(0, cand.start_line - 1), actualEnd)
 				const content = snippetLines.join("\n")
-				
-				// Rough token estimate: ~4 chars per token
-				const estimatedTokens = Math.ceil(content.length / 4)
 
-				if (currentTokens + estimatedTokens > tokenBudget) {
-					// Stop when token ceiling is reached
+				const estimatedTokens = Math.ceil(content.length / 4)
+				if (currentTokens + estimatedTokens > tokenBudget && packedSnippets.length >= 2) {
 					continue
 				}
 
+				seenSpans.add(spanKey)
+				fileSnippetCounts.set(cand.file, fileCount + 1)
 				currentTokens += estimatedTokens
+
 				packedSnippets.push({
 					path: cand.file,
-					lines: [cand.start_line, cand.end_line],
+					lines: [cand.start_line, actualEnd],
 					score: cand.score,
 					reason: cand.reason,
 					content,
 				})
 
 				explainability.push(
-					`[${cand.file} L${cand.start_line}-L${cand.end_line}] (~${estimatedTokens} tokens) - ${cand.reason}`
+					`[${cand.file} L${cand.start_line}-L${actualEnd}] (~${estimatedTokens} tokens) - ${cand.reason}`
 				)
+
+				if (currentTokens >= tokenBudget) {
+					break
+				}
 			} catch {
-				// Ignore missing files or read errors
+				// Ignore file access errors
 			}
 		}
 

@@ -332,11 +332,11 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 							const packed = await engine.assembleContext(promptText, 1800)
 							if (packed.snippets.length > 0) {
 								promptText += `\n\n[Pacior Context Engineering - Assembled Focus Context (${packed.totalEstimatedTokens} tokens)]:`
-								for (const exp of packed.explainability.slice(0, 4)) {
+								for (const exp of packed.explainability.slice(0, 5)) {
 									promptText += `\n- ${exp}`
 								}
-								promptText += `\n\nRelevant AST Snippets:`
-								for (const s of packed.snippets.slice(0, 3)) {
+								promptText += `\n\nRelevant AST & Doc Snippets:`
+								for (const s of packed.snippets.slice(0, 4)) {
 									promptText += `\n--- ${s.path} (L${s.lines[0]}-L${s.lines[1]}) ---\n${s.content}\n`
 								}
 							}

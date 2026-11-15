@@ -12,8 +12,8 @@ import { PaciorContextEngine } from "@/context/PaciorContextEngine"
 const execAsync = promisify(exec)
 
 const IGNORED_DIRS = new Set([".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", ".next", ".cache"])
-const MAX_READ_LINES = 600
-const MAX_SEARCH_MATCHES = 80
+const MAX_READ_LINES = 120
+const MAX_SEARCH_MATCHES = 20
 const MAX_LIST_ENTRIES = 250
 const DEFAULT_COMMAND_TIMEOUT_MS = 120_000
 
