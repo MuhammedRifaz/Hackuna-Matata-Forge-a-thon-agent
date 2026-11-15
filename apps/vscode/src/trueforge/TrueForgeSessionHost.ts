@@ -521,9 +521,16 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								const inputTokens = ev.usage.inputTokens ?? 0
 								const outputTokens = ev.usage.outputTokens ?? 0
 								const cacheReadTokens = ev.usage.cacheReadTokens ?? 0
-								session.totalInputTokens += inputTokens
-								session.totalOutputTokens += outputTokens
-								session.totalCacheReadTokens += cacheReadTokens
+								// When TrueForge reports cumulative turn tokens on delta/final, replace rather than multiply
+								if (inputTokens > session.totalInputTokens) {
+									session.totalInputTokens = inputTokens
+								}
+								if (outputTokens > session.totalOutputTokens) {
+									session.totalOutputTokens = outputTokens
+								}
+								if (cacheReadTokens > session.totalCacheReadTokens) {
+									session.totalCacheReadTokens = cacheReadTokens
+								}
 								this.emitAgentEvent(session.clineSessionId, {
 									type: "usage",
 									inputTokens,
@@ -649,8 +656,14 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 					session.status = "error"
 					const errObj = new Error(turnErrorMessage)
-					// Cleanly rollback workspace on fatal error to preserve workspace consistency (Hackathon B3)
-					await this.mcpServer.rollbackSessionEdits().catch(() => {})
+					// Only rollback uncommitted edits on user abortion, not on iteration limit/recoverable error so progress is preserved
+					const isAbortedByUser = /aborted|cancelled|user request/i.test(turnErrorMessage)
+					if (isAbortedByUser) {
+						await this.mcpServer.rollbackSessionEdits().catch(() => {})
+					} else {
+						// Commit partial progress so retry continues from current state instead of reverting to scratch
+						this.mcpServer.commitSessionEdits()
+					}
 					this.emitAgentEvent(session.clineSessionId, {
 						type: "error",
 						error: errObj,
