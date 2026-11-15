@@ -511,20 +511,7 @@ export class WorkspaceMcpServer {
 			const startLine = typeof entry.start_line === "number" ? Math.max(1, Math.floor(entry.start_line)) : undefined
 			const endLine = typeof entry.end_line === "number" ? Math.max(1, Math.floor(entry.end_line)) : undefined
 
-			if (this.options.readFileExecutor) {
-				try {
-					const content = await this.options.readFileExecutor(
-						{ path: absPath, start_line: startLine, end_line: endLine },
-						context,
-					)
-					const text = typeof content === "string" ? content : JSON.stringify(content)
-					sections.push(`=== ${rawPath} ===\n${text}`)
-					continue
-				} catch {
-					// Fallback to direct fs read below if executor rejects formatted payload
-				}
-			}
-
+			// Direct safe reading with line capping to prevent exceeding tool response character limits
 			const raw = await fs.readFile(absPath, "utf8")
 			const lines = raw.split(/\r?\n/)
 			const sliceStart = startLine ? startLine - 1 : 0
