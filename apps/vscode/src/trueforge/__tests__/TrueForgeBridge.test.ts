@@ -65,6 +65,10 @@ describe("TrueForge VS Code Bridge", () => {
 				const updated = await fs.readFile(path.join(tmpDir, "sample.py"), "utf8")
 				assert.ok(updated.includes("return 'trueforge'"))
 
+				// Run commands execution
+				const cmdResult = await server.executeTool("run_commands", { commands: ["python --version"] })
+				assert.ok(cmdResult.includes("[exit 0]"))
+
 				// Path traversal protection
 				await assert.rejects(() => server.executeTool("read_files", { files: [{ path: "../outside.txt" }] }), /Access denied/)
 			} finally {

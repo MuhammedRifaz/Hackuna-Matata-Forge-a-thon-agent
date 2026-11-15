@@ -744,7 +744,7 @@ export class WorkspaceMcpServer {
 
 		const outputs: string[] = []
 		const isWin = process.platform === "win32"
-		const shell = isWin ? "powershell.exe" : undefined
+		const shell = isWin ? (process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe") : undefined
 
 		// In Python projects, ensure workspace root or src directory is automatically in PYTHONPATH
 		const env = { ...process.env }
@@ -759,7 +759,15 @@ export class WorkspaceMcpServer {
 			const py314Scripts = path.join(py314, "Scripts")
 			const venvScripts = path.join(workspaceRoot, ".venv", "Scripts")
 			const venvScripts2 = path.join(workspaceRoot, "venv", "Scripts")
-			const prependPaths = [venvScripts, venvScripts2, py314, py314Scripts].filter((p) => {
+			const prependPaths = [
+				venvScripts,
+				venvScripts2,
+				py314,
+				py314Scripts,
+				"C:\\Windows\\System32",
+				"C:\\Windows",
+				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0",
+			].filter((p) => {
 				try {
 					return fsSync.existsSync(p)
 				} catch {
@@ -785,12 +793,25 @@ export class WorkspaceMcpServer {
 		}
 
 		for (const command of rawCommands) {
+			let normalizedCmd = command.trim()
+			if (isWin) {
+				// Strip unix pipeline wrappers frequently emitted by models
+				normalizedCmd = normalizedCmd
+					.replace(/\s*2>&1\s*\|\s*head\s*-\d+/gi, "")
+					.replace(/\s*\|\s*head\s*-\d+/gi, "")
+					.replace(/\s*2>\/dev\/null/gi, "")
+					.replace(/\s*2>&1/gi, "")
+				if (normalizedCmd.startsWith("which ")) {
+					normalizedCmd = normalizedCmd.replace(/^which\s+/, "where ")
+				}
+			}
+
 			if (this.options.runCommandExecutor) {
-				outputs.push(await this.options.runCommandExecutor(command, workspaceRoot, signal))
+				outputs.push(await this.options.runCommandExecutor(normalizedCmd, workspaceRoot, signal))
 				continue
 			}
 			try {
-				const { stdout, stderr } = await execAsync(command, {
+				const { stdout, stderr } = await execAsync(normalizedCmd, {
 					cwd: workspaceRoot,
 					shell,
 					env,
