@@ -302,8 +302,8 @@ export class TrueForgeClient {
 		})
 	}
 
-	async listSessions(limit = 50): Promise<TrueForgeApi.Session[]> {
-		const page = await this.sdk.sessions.list({ limit }, { timeoutInSeconds: 10, maxRetries: 0 })
+	async listSessions(limit = 20): Promise<TrueForgeApi.Session[]> {
+		const page = await this.sdk.sessions.list({ limit: Math.min(25, limit) }, { timeoutInSeconds: 10, maxRetries: 0 })
 		return page.data
 	}
 

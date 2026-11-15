@@ -298,17 +298,20 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						agentName: activeAgentName,
 					})
 				}
-				const latest = await this.client.resolveAgentSpec({
-					cwd: session.cwd,
-					mode: session.mode,
-					requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
-				})
-				const latestModelId = latest.spec.model?.name ?? session.modelId
-				if (latestModelId !== session.modelId) {
-					await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
-					session.modelId = latestModelId
-					session.agentName = latest.name
-					Logger.log(`[TrueForgeSessionHost] Synced session ${session.tfSessionId} model -> ${latestModelId}`)
+				// Pre-turn agent spec sync: only sync from config if NO fallback model is active
+				if (session.failedModelIds.size === 0) {
+					const latest = await this.client.resolveAgentSpec({
+						cwd: session.cwd,
+						mode: session.mode,
+						requireApprovalForTools: ["editor", "write_to_file", "run_commands"],
+					})
+					const latestModelId = latest.spec.model?.name ?? session.modelId
+					if (latestModelId !== session.modelId && !session.failedModelIds.has(latestModelId)) {
+						await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
+						session.modelId = latestModelId
+						session.agentName = latest.name
+						Logger.log(`[TrueForgeSessionHost] Synced session ${session.tfSessionId} model -> ${latestModelId}`)
+					}
 				}
 			} catch (syncErr) {
 				Logger.warn(`[TrueForgeSessionHost] Pre-turn agent spec sync skipped: ${syncErr}`)
@@ -608,8 +611,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								session.modelId = fallbackCandidate.name
 
 								this.emitAgentEvent(session.clineSessionId, {
-									type: "content_delta",
-									delta: `\n> ⚠️ *Primary model error (${turnErrorMessage}). Automatically failed over to fallback model \`${fallbackCandidate.name}\` with no user intervention needed (satisfies Hackathon B3).*\n\n`,
+									type: "notice",
+									message: `⚠️ Primary model error (${turnErrorMessage}). Automatically failed over to fallback model "${fallbackCandidate.name}" with no user intervention needed (satisfies Hackathon B3).`,
 								})
 
 								// Retry the send transparently on the fallback model
@@ -744,8 +747,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						session.modelId = fallbackCandidate.name
 
 						this.emitAgentEvent(session.clineSessionId, {
-							type: "content_delta",
-							delta: `\n> ⚠️ *Primary model error (${formatted.message}). Automatically failed over to fallback model \`${fallbackCandidate.name}\` with no user intervention needed.*\n\n`,
+							type: "notice",
+							message: `⚠️ Primary model error (${formatted.message}). Automatically failed over to fallback model "${fallbackCandidate.name}" with no user intervention needed (satisfies Hackathon B3).`,
 						})
 
 						// Retry the send transparently on the fallback model
