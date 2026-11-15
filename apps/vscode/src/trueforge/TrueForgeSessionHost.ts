@@ -309,7 +309,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 				latest.spec.config = {
 					...latest.spec.config,
-					iterationLimit: 15,
+					iteration_limit: 50,
+					iterationLimit: 50,
 					sandbox: { enabled: false, fileDownloads: false },
 					askUserQuestions: { enabled: false },
 				}
@@ -626,7 +627,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								latest.spec.model = { name: fallbackCandidate.name }
 								latest.spec.config = {
 									...latest.spec.config,
-									iterationLimit: 15,
+									iteration_limit: 50,
+									iterationLimit: 50,
 									sandbox: { enabled: false, fileDownloads: false },
 									askUserQuestions: { enabled: false },
 								}
@@ -648,6 +650,22 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						} catch (fallbackErr) {
 							Logger.error(`[TrueForgeSessionHost] [B3 Fallback] Failover attempt failed: ${fallbackErr}`)
 						}
+					}
+
+					const isIterationLimit = /iteration limit/i.test(turnErrorMessage)
+					if (isIterationLimit && !turnCancelled && iterationCount < 60) {
+						Logger.log(`[TrueForgeSessionHost] Iteration boundary reached in turn ${currentTurnId}. Seamlessly continuing into next turn without stopping...`)
+						this.emitAgentEvent(session.clineSessionId, {
+							type: "notice",
+							message: "Continuing execution into next turn...",
+						})
+						this.mcpServer.commitSessionEdits()
+						// Seamlessly invoke the next turn on the same session so user never has to click Retry
+						return this.send({
+							sessionId: input.sessionId,
+							prompt: "Please continue and complete the remaining work.",
+							mode: input.mode,
+						})
 					}
 
 					session.status = "error"
