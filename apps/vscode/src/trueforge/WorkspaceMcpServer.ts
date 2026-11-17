@@ -825,8 +825,33 @@ export class WorkspaceMcpServer {
 				if (/^cat\s+/i.test(normalizedCmd)) {
 					normalizedCmd = normalizedCmd.replace(/^cat\s+/i, "type ")
 				}
-				// Note: Git for Windows provides native grep.exe under C:\Program Files\Git\usr\bin which is prepended to PATH.
-				// Do not rewrite grep to findstr /s because findstr /s hangs on directories / large files on Windows.
+
+				// Auto-quote unquoted absolute Windows paths containing spaces (e.g. c:\Users\...\IIT Bombay - TrueForge Agent\...)
+				// Without quotes, commands like grep/pytest treat spaces as separate arguments/directories and fail or hang
+				normalizedCmd = normalizedCmd.replace(
+					/(^|[\s=])([a-zA-Z]:\\[^\r\n"|><&]+?)(\s*$|\s+(?=[|><&]))/g,
+					(match, prefix, filePath, suffix) => {
+						const trimmed = filePath.trim()
+						if (trimmed.includes(" ") && fsSync.existsSync(trimmed)) {
+							return `${prefix}"${trimmed}"${suffix}`
+						}
+						return match
+					},
+				)
+				// Auto-quote unquoted relative paths in workspaceRoot if they contain spaces and exist
+				if (workspaceRoot && workspaceRoot.includes(" ")) {
+					normalizedCmd = normalizedCmd.replace(
+						/(^|[\s=])([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9_\-]+)(\s*$|\s+(?=[|><&]))/g,
+						(match, prefix, filePath, suffix) => {
+							if (prefix.endsWith('"') || prefix.endsWith("'")) return match
+							const resolved = path.resolve(workspaceRoot, filePath.trim())
+							if (fsSync.existsSync(resolved)) {
+								return `${prefix}"${resolved}"${suffix}`
+							}
+							return match
+						},
+					)
+				}
 			}
 
 			if (this.options.runCommandExecutor) {

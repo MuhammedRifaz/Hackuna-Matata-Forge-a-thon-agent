@@ -1,4 +1,5 @@
 import * as vscode from "vscode"
+import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
 import { TrueForgeClient } from "./TrueForgeClient"
 import { VscodeEditPreview } from "@/hosts/vscode/VscodeEditPreview"
@@ -156,6 +157,7 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 	try {
 		await editPreview.open({
 			displayPath: filePath,
+			absolutePath: filePath,
 			leftContent: fullDocText,
 			rightContent: proposedDocText,
 			title: `${filePath} (Diff Review: Inline Edit)`,

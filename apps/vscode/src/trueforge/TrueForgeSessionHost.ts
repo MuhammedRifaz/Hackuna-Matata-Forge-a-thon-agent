@@ -314,10 +314,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 				latest.spec.config = {
 					...latest.spec.config,
-					iteration_limit: 50,
 					iterationLimit: 50,
 					sandbox: { enabled: false, fileDownloads: false },
-					ask_user_questions: { enabled: true },
 					askUserQuestions: { enabled: true },
 				}
 				await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
@@ -455,10 +453,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								latest.spec.model = { name: fallbackCandidate.name }
 								latest.spec.config = {
 									...latest.spec.config,
-									iteration_limit: 50,
 									iterationLimit: 50,
 									sandbox: { enabled: false, fileDownloads: false },
-									ask_user_questions: { enabled: true },
 									askUserQuestions: { enabled: true },
 								}
 								await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
@@ -699,7 +695,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								// Submit approval decision directly into active stream via createTurnEvent so TrueForge resumes immediately
 								await this.client.submitToolApproval(
 									session.tfSessionId,
-									currentTurnId || session.lastTurnId,
+									currentTurnId || session.lastTurnId || "",
 									ev.threadId,
 									ref.id,
 									approved,
@@ -744,7 +740,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								// Submit user response directly into active stream via createTurnEvent
 								await this.client.submitToolResponse(
 									session.tfSessionId,
-									currentTurnId || session.lastTurnId,
+									currentTurnId || session.lastTurnId || "",
 									(ev as any).threadId ?? "main",
 									ref.id,
 									answer || questionOptions[0] || "Proceed",
@@ -822,10 +818,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								latest.spec.model = { name: fallbackCandidate.name }
 								latest.spec.config = {
 									...latest.spec.config,
-									iteration_limit: 50,
 									iterationLimit: 50,
 									sandbox: { enabled: false, fileDownloads: false },
-									ask_user_questions: { enabled: true },
 									askUserQuestions: { enabled: true },
 								}
 								await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
