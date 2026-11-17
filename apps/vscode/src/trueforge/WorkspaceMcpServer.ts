@@ -11,10 +11,10 @@ import { PaciorContextEngine } from "@/context/PaciorContextEngine"
 
 const execAsync = promisify(exec)
 
-const IGNORED_DIRS = new Set([".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", ".next", ".cache"])
-const MAX_READ_LINES = 120
-const MAX_SEARCH_MATCHES = 20
-const MAX_LIST_ENTRIES = 250
+const IGNORED_DIRS = new Set([".git", ".pacior", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", ".next", ".cache"])
+const MAX_READ_LINES = 60
+const MAX_SEARCH_MATCHES = 10
+const MAX_LIST_ENTRIES = 100
 const DEFAULT_COMMAND_TIMEOUT_MS = 120_000
 
 export interface WorkspaceMcpServerOptions {
@@ -511,6 +511,14 @@ export class WorkspaceMcpServer {
 			const startLine = typeof entry.start_line === "number" ? Math.max(1, Math.floor(entry.start_line)) : undefined
 			const endLine = typeof entry.end_line === "number" ? Math.max(1, Math.floor(entry.end_line)) : undefined
 
+			const stat = await fs.stat(absPath).catch(() => undefined)
+			if (stat && stat.isDirectory()) {
+				// Handle models mistakenly passing directory to read_files: list directory entries gracefully
+				const entries = await fs.readdir(absPath)
+				sections.push(`=== Directory: ${rawPath} ===\n${entries.slice(0, 50).join("\n")}`)
+				continue
+			}
+
 			// Direct safe reading with line capping to prevent exceeding tool response character limits
 			const raw = await fs.readFile(absPath, "utf8")
 			const lines = raw.split(/\r?\n/)
@@ -740,17 +748,14 @@ export class WorkspaceMcpServer {
 		const sep = isWin ? ";" : ":"
 		env.PYTHONPATH = env.PYTHONPATH ? `${extraPaths.join(sep)}${sep}${env.PYTHONPATH}` : extraPaths.join(sep)
 
-		// Discover and prepend active Python interpreter environment (e.g. Python 3.14 or virtual environments)
+		// Discover and prepend active Python interpreter environment dynamically
 		if (isWin) {
-			const py314 = "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python314"
-			const py314Scripts = path.join(py314, "Scripts")
 			const venvScripts = path.join(workspaceRoot, ".venv", "Scripts")
 			const venvScripts2 = path.join(workspaceRoot, "venv", "Scripts")
 			const prependPaths = [
 				venvScripts,
 				venvScripts2,
-				py314,
-				py314Scripts,
+				"C:\\Program Files\\Git\\usr\\bin",
 				"C:\\Program Files\\Git\\cmd",
 				"C:\\Program Files\\Git\\bin",
 				"C:\\Windows\\System32",
@@ -793,6 +798,35 @@ export class WorkspaceMcpServer {
 				if (normalizedCmd.startsWith("which ")) {
 					normalizedCmd = normalizedCmd.replace(/^which\s+/, "where ")
 				}
+				// Polyfill common Unix file/directory inspection commands to Windows equivalents
+				// e.g. "ls -la <path>" -> "dir /b <path>", "ls <path>" -> "dir /b <path>"
+				if (/^ls(\s+-[a-zA-Z]+)*(\s+.*)?$/i.test(normalizedCmd)) {
+					let target = normalizedCmd.replace(/^ls(\s+-[a-zA-Z]+)*\s*/i, "").trim()
+					// Strip quotes if present
+					target = target.replace(/^["']|["']$/g, "")
+					// Normalize forward slashes and strip trailing slashes so cmd dir doesn't fail with 'Invalid switch'
+					target = target.replace(/\//g, "\\").replace(/\\+$/, "")
+					normalizedCmd = target ? `dir /b "${target}"` : `dir /b`
+				}
+				// Fix direct "dir <path>/" with trailing slash
+				if (/^dir\s+/i.test(normalizedCmd)) {
+					normalizedCmd = normalizedCmd.replace(/\//g, "\\").replace(/\\+$/, "")
+				}
+				// "find <dir> -name <pat>" polyfill for Windows
+				if (/^find\s+([^\s]+)\s+-name\s+["']?([^"']+)["']?/i.test(normalizedCmd)) {
+					const m = normalizedCmd.match(/^find\s+([^\s]+)\s+-name\s+["']?([^"']+)["']?/i)
+					if (m) {
+						let dir = m[1].replace(/\//g, "\\").replace(/\\+$/, "")
+						const pat = m[2]
+						normalizedCmd = `dir /s /b "${dir}\\${pat}"`
+					}
+				}
+				// "cat <path>" -> "type <path>"
+				if (/^cat\s+/i.test(normalizedCmd)) {
+					normalizedCmd = normalizedCmd.replace(/^cat\s+/i, "type ")
+				}
+				// Note: Git for Windows provides native grep.exe under C:\Program Files\Git\usr\bin which is prepended to PATH.
+				// Do not rewrite grep to findstr /s because findstr /s hangs on directories / large files on Windows.
 			}
 
 			if (this.options.runCommandExecutor) {
@@ -809,15 +843,15 @@ export class WorkspaceMcpServer {
 					signal,
 				})
 				let combined = [stdout.trimEnd(), stderr.trimEnd()].filter(Boolean).join("\n")
-				if (combined.length > 3000) {
-					combined = combined.slice(0, 1500) + "\n\n... [output truncated to protect context window] ...\n\n" + combined.slice(-1500)
+				if (combined.length > 1200) {
+					combined = combined.slice(0, 600) + "\n\n... [output truncated to protect context window] ...\n\n" + combined.slice(-600)
 				}
 				outputs.push(`$ ${command}\n[exit 0]\n${combined || "(no output)"}`)
 			} catch (error) {
 				const err = error as { stdout?: string; stderr?: string; code?: number; message?: string }
 				let combined = [err.stdout?.trimEnd(), err.stderr?.trimEnd(), err.message].filter(Boolean).join("\n")
-				if (combined.length > 3000) {
-					combined = combined.slice(0, 1500) + "\n\n... [output truncated to protect context window] ...\n\n" + combined.slice(-1500)
+				if (combined.length > 1200) {
+					combined = combined.slice(0, 600) + "\n\n... [output truncated to protect context window] ...\n\n" + combined.slice(-600)
 				}
 				outputs.push(`$ ${command}\n[exit ${err.code ?? 1}]\n${combined}`)
 			}

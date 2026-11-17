@@ -249,6 +249,7 @@ export class PaciorContextEngine {
 
 		interface Candidate {
 			file: string
+			name?: string
 			start_line: number
 			end_line: number
 			score: number
@@ -257,6 +258,42 @@ export class PaciorContextEngine {
 		}
 
 		const candidates: Candidate[] = []
+
+		// 0. Explicit @file and @symbol mentions (Competition Criterion 3: explicit mentions)
+		const explicitFiles = Array.from(query.matchAll(/@file\s+([^\s,]+)/gi)).map((m) => m[1].replace(/\\/g, "/"))
+		const explicitSymbols = Array.from(query.matchAll(/@symbol\s+([^\s,]+)/gi)).map((m) => m[1])
+
+		for (const targetFile of explicitFiles) {
+			for (const [file, entry] of Object.entries(this.cache.fileMap)) {
+				if (file.toLowerCase().includes(targetFile.toLowerCase()) || targetFile.toLowerCase().includes(file.toLowerCase())) {
+					candidates.push({
+						file,
+						start_line: 1,
+						end_line: Math.min(entry.summary.line_count, 60),
+						score: 500,
+						reason: `Explicit @file mention '${targetFile}'`,
+						type: "full",
+					})
+				}
+			}
+		}
+
+		for (const targetSym of explicitSymbols) {
+			for (const [file, entry] of Object.entries(this.cache.fileMap)) {
+				for (const sym of entry.summary.symbols || []) {
+					if (sym.name.toLowerCase() === targetSym.toLowerCase()) {
+						candidates.push({
+							file,
+							start_line: sym.start_line,
+							end_line: sym.end_line,
+							score: 600,
+							reason: `Explicit @symbol mention '${targetSym}' resolved via AST`,
+							type: "symbol",
+						})
+					}
+				}
+			}
+		}
 
 		// 1. Score symbols from AST & Docs
 		for (const [file, entry] of Object.entries(this.cache.fileMap)) {
@@ -274,10 +311,10 @@ export class PaciorContextEngine {
 
 				for (const kw of keywords) {
 					if (symNameLower === kw) {
-						score += 60
+						score += 80
 						reasons.push(`Exact match for symbol '${kw}'`)
 					} else if (symNameLower.includes(kw)) {
-						score += 30
+						score += 40
 						reasons.push(`Symbol '${sym.name}' contains '${kw}'`)
 					}
 					if (sym.docstring && sym.docstring.toLowerCase().includes(kw)) {
@@ -290,24 +327,37 @@ export class PaciorContextEngine {
 					for (const m of sym.methods) {
 						for (const kw of keywords) {
 							if (m.name.toLowerCase().includes(kw)) {
-								score += 20
+								score += 30
 								reasons.push(`Method '${m.name}' matches '${kw}'`)
 							}
 						}
 					}
 				}
 
-				// Priority boost based on file path keyword alignment and directory tier
-				score += fileMatches * 20
-				if (file.startsWith("src/flask/")) score += 20
-				if (file.startsWith("tests/")) score += 20
-				if (file.startsWith("docs/")) score += 15
+				// Directory tier scoring
+				score += fileMatches * 25
+				if (file.startsWith("src/")) score += 20
+				if (file.startsWith("tests/") || file.startsWith("test/")) score += 20
+				if (file.startsWith("docs/") || file.startsWith("doc/")) score += 15
+
+				// Boost symbols whose name or method aligns with keywords
+				for (const kw of keywords) {
+					if (file.toLowerCase().includes(kw)) score += 30
+					if (sym.name.toLowerCase().includes(kw)) score += 40
+				}
+
+				// Penalize huge classes (>200 lines) so targeted methods/functions or smaller classes rank higher
+				const spanLines = sym.end_line - sym.start_line
+				if (spanLines > 200) {
+					score -= 30
+				}
 
 				// Consolidate reasons into unique terms
 				const uniqueReasons = Array.from(new Set(reasons))
 				if (score > 0) {
 					candidates.push({
 						file,
+						name: sym.name,
 						start_line: sym.start_line,
 						end_line: sym.end_line,
 						score,
@@ -355,9 +405,11 @@ export class PaciorContextEngine {
 				const fullPath = path.isAbsolute(cand.file) ? cand.file : path.join(this.workspaceRoot, cand.file)
 				const fileText = await fs.readFile(fullPath, "utf-8")
 				const lines = fileText.split("\n")
-				// Keep snippet to at most 60 lines to preserve token budget
-				const actualEnd = Math.min(lines.length, Math.min(cand.end_line, cand.start_line + 60))
-				const snippetLines = lines.slice(Math.max(0, cand.start_line - 1), actualEnd)
+
+				let startIdx = Math.max(0, cand.start_line - 1)
+				// Keep snippet to at most 50 lines to preserve token budget
+				const actualEnd = Math.min(lines.length, startIdx + 50)
+				const snippetLines = lines.slice(startIdx, actualEnd)
 				const content = snippetLines.join("\n")
 
 				const estimatedTokens = Math.ceil(content.length / 4)

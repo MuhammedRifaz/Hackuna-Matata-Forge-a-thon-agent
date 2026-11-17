@@ -81,6 +81,16 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 	const webview = HostProvider.get().createWebviewProvider()
 
 	const stateManager = StateManager.get()
+	// Hackathon requirement: Always enforce default auto-approval settings (all OFF) across restarts
+	// so judge evaluations and safety reviews always operate in interactive approval mode.
+	try {
+		const { DEFAULT_AUTO_APPROVAL_SETTINGS } = await import("@shared/AutoApprovalSettings")
+		stateManager.setGlobalState("autoApprovalSettings", { ...DEFAULT_AUTO_APPROVAL_SETTINGS })
+		Logger.log("[StateManager] Reset autoApprovalSettings to DEFAULT (all OFF) on launch.")
+	} catch (err) {
+		Logger.warn("[StateManager] Failed to reset autoApprovalSettings to default:", err)
+	}
+
 	// Non-blocking announcement check and display
 	showVersionUpdateAnnouncement(stateManager)
 	// Check if this workspace was opened from worktree quick launch

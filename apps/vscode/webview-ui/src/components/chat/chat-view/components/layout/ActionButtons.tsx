@@ -99,16 +99,64 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 		[messageHandlers, askIdentity],
 	)
 
+	const { primaryText, secondaryText, primaryAction, secondaryAction, enableButtons } = buttonConfig
+	const hasButtons = Boolean(primaryText || secondaryText)
+	const isStreaming = task?.partial === true
+	const canInteract = enableButtons && !isProcessing && !messageHandlers.recoveryActionInFlight
+
 	// Keyboard event handler
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent) => {
+			const activeTag = (document.activeElement?.tagName || "").toLowerCase()
+			const isTyping = activeTag === "input" || activeTag === "textarea"
+
+			// Escape: cancel / reject
 			if (event.key === "Escape") {
 				event.preventDefault()
 				event.stopPropagation()
 				handleActionClick({ type: "cancel" })
+				return
+			}
+
+			// Global shortcut: Enter (or Ctrl+Enter / Cmd+Enter when typing) triggers primary action (Approve / Retry / Save / Proceed)
+			if (event.key === "Enter" && !event.shiftKey) {
+				if (buttonConfig.primaryAction && canInteract) {
+					if (!isTyping || event.ctrlKey || event.metaKey) {
+						event.preventDefault()
+						event.stopPropagation()
+						handleActionClick(createActionInvocation(buttonConfig.primaryAction, getDraftSnapshot))
+						return
+					}
+				}
+			}
+
+			// Shortcut for rejecting tool approval or cancelling: Ctrl+Backspace or Shift+Escape
+			if ((event.key === "Backspace" && (event.ctrlKey || event.metaKey)) || (event.key === "Escape" && event.shiftKey)) {
+				if (buttonConfig.secondaryAction && canInteract) {
+					event.preventDefault()
+					event.stopPropagation()
+					handleActionClick(createActionInvocation(buttonConfig.secondaryAction, getDraftSnapshot))
+					return
+				}
+			}
+
+			// Shortcut: 'y' for Yes/Approve, 'n' for No/Reject when NOT typing in input
+			if (!isTyping && !event.ctrlKey && !event.metaKey && !event.altKey) {
+				if ((event.key === "y" || event.key === "Y") && buttonConfig.primaryAction && canInteract) {
+					event.preventDefault()
+					event.stopPropagation()
+					handleActionClick(createActionInvocation(buttonConfig.primaryAction, getDraftSnapshot))
+					return
+				}
+				if ((event.key === "n" || event.key === "N") && buttonConfig.secondaryAction && canInteract) {
+					event.preventDefault()
+					event.stopPropagation()
+					handleActionClick(createActionInvocation(buttonConfig.secondaryAction, getDraftSnapshot))
+					return
+				}
 			}
 		},
-		[handleActionClick],
+		[handleActionClick, buttonConfig, canInteract, getDraftSnapshot],
 	)
 
 	useEffect(() => {
@@ -119,11 +167,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 	if (!task) {
 		return null
 	}
-
-	const { primaryText, secondaryText, primaryAction, secondaryAction, enableButtons } = buttonConfig
-	const hasButtons = primaryText || secondaryText
-	const isStreaming = task.partial === true
-	const canInteract = enableButtons && !isProcessing && !messageHandlers.recoveryActionInFlight
 
 	if (!hasButtons) {
 		return null

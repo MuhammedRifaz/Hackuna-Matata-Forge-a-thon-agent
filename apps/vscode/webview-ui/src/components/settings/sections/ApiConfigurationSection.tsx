@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeTextArea, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { CheckCircle2, ExternalLink, RefreshCw, Server, XCircle } from "lucide-react"
+import { CheckCircle2, ExternalLink, HelpCircle, RefreshCw, Server, XCircle } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import PaciorIcon from "../../../assets/PaciorIcon"
@@ -92,7 +92,13 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 	const [agents, setAgents] = useState<TrueForgeAgentItem[]>([])
 	const [models, setModels] = useState<TrueForgeModelItem[]>([])
 	const [selectedAgentId, setSelectedAgentId] = useState<string>("")
-	const [selectedModel, setSelectedModel] = useState<string>("")
+	const [selectedModel, setSelectedModel] = useState<string>(() => {
+		try {
+			return localStorage.getItem("trueforge.activeModel") || ""
+		} catch {
+			return ""
+		}
+	})
 	const [reasoningEffort, setReasoningEffort] = useState<string>("off")
 	const [maxTokens, setMaxTokens] = useState<string>("4096")
 	const [instructions, setInstructions] = useState<string>("")
@@ -212,7 +218,7 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 			}
 
 			const res = await trueforgeProxyFetch(`${cleanBaseUrl}/api/v1/agents/${activeAgent.id}`, {
-				method: "PATCH",
+				method: "PUT",
 				body: JSON.stringify({ manifest: updatedManifest }),
 			})
 			if (!res.ok) {
@@ -235,48 +241,50 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 			<Section>
 				<div className="flex flex-col gap-4">
 					{/* Pacior Brand & Runtime Status Header */}
-					<div className="flex flex-col gap-2.5 p-3 rounded-lg border border-[var(--vscode-panel-border)] bg-[var(--vscode-editorWidget-background)]">
+					<div className="flex flex-col gap-3 p-3.5 rounded-lg border border-[var(--vscode-panel-border)] bg-[var(--vscode-editorWidget-background)]">
 						<div className="flex items-center justify-between gap-2">
-							<div className="flex items-center gap-2">
+							<div className="flex items-center gap-2 min-w-0">
 								<PaciorIcon className="w-7 h-7 shrink-0" />
 								<PaciorWordmark className="h-5 w-auto max-w-[130px]" showLabs={true} />
 							</div>
-							<div className="flex items-center gap-2 shrink-0">
-								<VSCodeButton appearance="secondary" disabled={loading} onClick={() => void loadFromTrueForge()}>
-									<span className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
-										<RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-										Refresh
-									</span>
-								</VSCodeButton>
-								<a
-									className="inline-flex items-center gap-1 text-xs text-[#B9E01E] hover:underline whitespace-nowrap shrink-0"
-									href={cleanBaseUrl}
-									rel="noreferrer"
-									target="_blank">
-									Dashboard <ExternalLink className="w-3 h-3 shrink-0" />
-								</a>
-							</div>
+							<a
+								className="inline-flex items-center gap-1.5 text-xs text-[#B9E01E] hover:underline whitespace-nowrap shrink-0 font-medium"
+								href={cleanBaseUrl}
+								rel="noreferrer"
+								target="_blank">
+								<span>Dashboard</span>
+								<ExternalLink className="w-3.5 h-3.5 shrink-0" />
+							</a>
 						</div>
 
-						<div className="flex items-center justify-between text-xs pt-1 border-t border-[var(--vscode-panel-border)]/50">
-							<span className="text-[var(--vscode-descriptionForeground)]">TrueForge Runtime Status</span>
-							{connected === true && (
-								<span className="inline-flex items-center gap-1.5 text-[#B9E01E] font-medium whitespace-nowrap">
-									<span className="w-2 h-2 rounded-full bg-[#B9E01E] shadow-sm shadow-[#B9E01E]/50 animate-pulse" />
-									Connected
+						<div className="flex items-center justify-between gap-2 pt-2 border-t border-[var(--vscode-panel-border)]/50">
+							<div className="flex items-center gap-2">
+								<span className="text-xs text-[var(--vscode-descriptionForeground)]">Status:</span>
+								{connected === true && (
+									<span className="inline-flex items-center gap-1.5 text-xs text-[#B9E01E] font-medium whitespace-nowrap">
+										<span className="w-2 h-2 rounded-full bg-[#B9E01E] shadow-sm shadow-[#B9E01E]/50 animate-pulse" />
+										Connected
+									</span>
+								)}
+								{connected === false && (
+									<span className="inline-flex items-center gap-1.5 text-xs text-[var(--vscode-errorForeground)] font-medium whitespace-nowrap">
+										<XCircle className="w-3.5 h-3.5 shrink-0" />
+										Disconnected
+									</span>
+								)}
+								{connected === null && (
+									<span className="inline-flex items-center gap-1.5 text-xs text-[var(--vscode-descriptionForeground)] font-medium whitespace-nowrap">
+										<HelpCircle className="w-3.5 h-3.5 shrink-0" />
+										Unknown
+									</span>
+								)}
+							</div>
+							<VSCodeButton appearance="secondary" disabled={loading} onClick={() => void loadFromTrueForge()}>
+								<span className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap">
+									<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+									Refresh
 								</span>
-							)}
-							{connected === false && (
-								<span className="inline-flex items-center gap-1.5 text-[var(--vscode-errorForeground)] font-medium whitespace-nowrap">
-									<XCircle className="w-3.5 h-3.5 shrink-0" />
-									Disconnected
-								</span>
-							)}
-							{connected === null && (
-								<span className="inline-flex items-center gap-1.5 text-[var(--vscode-descriptionForeground)]">
-									Checking...
-								</span>
-							)}
+							</VSCodeButton>
 						</div>
 					</div>
 

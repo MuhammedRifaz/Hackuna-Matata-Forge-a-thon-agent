@@ -40,9 +40,9 @@
 	--color-selection: var(--vscode-list-activeSelectionBackground);
 	--color-selection-foreground: var(--vscode-list-activeSelectionForeground);
 	--color-selection-inactive: var(--vscode-editor-inactiveSelectionBackground);
-	--color-button-background: var(--vscode-button-background);
-	--color-button-hover: var(--vscode-button-hoverBackground);
-	--color-button-foreground: var(--vscode-button-foreground);
+	--color-button-background: #B9E01E;
+	--color-button-hover: #a4c917;
+	--color-button-foreground: #012E47;
 	--color-button-separator: var(--vscode-button-separator);
 	--color-text-separator: var(--vscode-textSeparator-foreground, #424242);
 	--color-button-secondary-background: var(--vscode-button-secondaryBackground);

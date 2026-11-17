@@ -8,13 +8,13 @@ const buttonVariants = cva(
 	{
 		variants: {
 			variant: {
-				default: "bg-button-background text-primary-foreground hover:bg-button-hover",
+				default: "bg-[#B9E01E] text-[#012E47] font-semibold hover:bg-[#a4c917]",
 				secondary:
 					"bg-button-secondary-background text-button-secondary-foreground hover:bg-button-secondary-background-hover shadow-sm shadow-button-secondary-background/50",
 				error: "bg-error text-background hover:bg-error/90 shadow-sm shadow-error/50",
 				outline: "hover:bg-accent/10 border border-accent/20 shadow-sm shadow-accent/50",
 				"outline-primary":
-					"!bg-transparent !border-[var(--vscode-button-background)] !border-[1px] !border-solid !text-[var(--vscode-button-background)] !hover:bg-[color-mix(in_srgb,var(--vscode-button-background)_15%,transparent)] !active:bg-[color-mix(in_srgb,var(--vscode-button-background)_25%,transparent)]",
+					"!bg-transparent !border-[#B9E01E] !border-[1px] !border-solid !text-[#B9E01E] !hover:bg-[#B9E01E]/15 !active:bg-[#B9E01E]/25",
 				ghost: "hover:bg-accent/10",
 				link: "text-link underline-offset-4 hover:underline p-0 m-0 cursor-text select-text hover:text-link-hover",
 				text: "text-foreground cursor-text select-text p-0 m-0",

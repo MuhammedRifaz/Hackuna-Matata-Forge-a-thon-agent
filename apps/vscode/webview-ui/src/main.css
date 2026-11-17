@@ -1,5 +1,25 @@
 textarea:focus {
-	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
+	outline: 1.5px solid var(--vscode-focusBorder, #B9E01E);
+}
+
+/* Pacior Custom Brand Theme for Action Buttons */
+vscode-button[appearance="primary"] {
+	--button-primary-background: #B9E01E;
+	--button-primary-foreground: #012E47;
+	--button-primary-hover-background: #a4c917;
+	font-weight: 600;
+}
+
+vscode-button[appearance="primary"]::part(control) {
+	background-color: #B9E01E !important;
+	color: #012E47 !important;
+	border-color: #B9E01E !important;
+	font-weight: 600 !important;
+}
+
+vscode-button[appearance="primary"]:hover::part(control) {
+	background-color: #a4c917 !important;
+	color: #012E47 !important;
 }
 
 vscode-button::part(control):focus {

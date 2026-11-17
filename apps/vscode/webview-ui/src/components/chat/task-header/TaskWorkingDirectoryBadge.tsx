@@ -81,7 +81,7 @@ const TaskWorkingDirectoryBadge: React.FC<{
 	return (
 		<Tooltip>
 			<TooltipContent className="max-w-xs" side="bottom">
-				This task's working directory is {cwd}, which is outside the current workspace. Cline reads and edits files and
+				This task's working directory is {cwd}, which is outside the current workspace. Pacior reads and edits files and
 				runs commands there.
 			</TooltipContent>
 			<TooltipTrigger className="flex items-center min-w-0">

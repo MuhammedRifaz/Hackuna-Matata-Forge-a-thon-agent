@@ -55,34 +55,11 @@ const SETTINGS_TABS: SettingsTab[] = [
 		icon: SlidersHorizontal,
 	},
 	{
-		id: "features",
-		name: "Features",
-		tooltipText: "Feature Settings",
-		headerText: "Feature Settings",
-		icon: CheckCheck,
-	},
-	{
-		id: "terminal",
-		name: "Terminal",
-		tooltipText: "Terminal Settings",
-		headerText: "Terminal Settings",
-		icon: SquareTerminal,
-	},
-	{
 		id: "general",
 		name: "General",
-		tooltipText: "General Settings",
+		tooltipText: "General & Auto-Approval Settings",
 		headerText: "General Settings",
 		icon: Wrench,
-	},
-	{
-		id: "remote-config",
-		name: "Remote Config",
-		tooltipText: "Remotely configured fields",
-		headerText: "Remote Config",
-		icon: HardDriveDownload,
-		hidden: ({ activeOrganization } = { user: null, activeOrganization: null }) =>
-			!activeOrganization || !isAdminOrOwner(activeOrganization),
 	},
 	{
 		id: "about",
@@ -90,15 +67,6 @@ const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "About Pacior Code",
 		headerText: "About",
 		icon: Info,
-	},
-	// Only show in dev mode
-	{
-		id: "debug",
-		name: "Debug",
-		tooltipText: "Debug Tools",
-		headerText: "Debug",
-		icon: FlaskConical,
-		hidden: ({ user } = { user: null, activeOrganization: null }) => !IS_DEV && !isClineInternalTester(user?.email || ""),
 	},
 ]
 

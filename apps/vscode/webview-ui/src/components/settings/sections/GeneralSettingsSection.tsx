@@ -4,6 +4,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import PreferredLanguageSetting from "../PreferredLanguageSetting"
 import Section from "../Section"
 import { updateSetting } from "../utils/settingsHandlers"
+import AutoApprovalSettingsSection from "./AutoApprovalSettingsSection"
 
 interface GeneralSettingsSectionProps {
 	renderSectionHeader: (tabId: string) => JSX.Element | null
@@ -61,6 +62,8 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 					</p>
 				</div>
 			</Section>
+
+			<AutoApprovalSettingsSection />
 		</div>
 	)
 }

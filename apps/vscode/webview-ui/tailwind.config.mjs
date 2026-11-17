@@ -41,10 +41,10 @@ export default {
 				},
 				button: {
 					background: {
-						DEFAULT: "var(--vscode-button-background)",
-						hover: "var(--vscode-button-hoverBackground)",
+						DEFAULT: "#B9E01E",
+						hover: "#a4c917",
 					},
-					foreground: "var(--vscode-button-foreground)",
+					foreground: "#012E47",
 					separator: "var(--vscode-button-separator)",
 					secondary: {
 						background: {

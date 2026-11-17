@@ -206,13 +206,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									workspaceRoots={workspaceRoots}
 								/>
 							)}
-							{isCostAvailable && (
-								<div
-									className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
-									id="price-tag">
-									<span className="text-xs sm:text-sm">${totalCost?.toFixed(4)}</span>
-								</div>
-							)}
+							{/* Cost badge removed per user requirements */}
 						</div>
 					</div>
 					<NewTaskButton className={cn(BUTTON_CLASS, "shrink-0 mt-1")} onClick={onClose} />
