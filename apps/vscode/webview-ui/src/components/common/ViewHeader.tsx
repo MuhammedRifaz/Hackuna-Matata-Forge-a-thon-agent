@@ -33,7 +33,7 @@ const ViewHeader = ({ title, onDone, showEnvironmentSuffix, environment }: ViewH
 					</span>
 				)}
 			</div>
-			<Button size="header" onClick={onDone}>
+			<Button size="header" onClick={onDone} className="!bg-[#B9E01E] !text-[#012E47] font-semibold hover:!bg-[#a4c917]">
 				Done
 			</Button>
 		</div>

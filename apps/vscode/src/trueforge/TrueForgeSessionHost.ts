@@ -317,6 +317,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					iterationLimit: 50,
 					sandbox: { enabled: false, fileDownloads: false },
 					askUserQuestions: { enabled: true },
+					contextManagement: {
+						compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
+						largeToolResponse: { enabled: true },
+					},
 				}
 				await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
 				session.modelId = latest.spec.model?.name ?? session.modelId
@@ -330,7 +334,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				let promptText = input.prompt
 
 				// Auto Context Assembly Optimization:
-				// Only assemble on Turn 1 (initial request). Keep concise to stay strictly within context budget.
+				// Only assemble on Turn 1 (initial request). Keep strictly within 900-token budget.
 				if (!session.lastTurnId) {
 					try {
 						const { PaciorContextEngine } = await import("@/context/PaciorContextEngine")
@@ -339,16 +343,19 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						if (cache && Object.keys(cache.fileMap).length > 0) {
 							const packed = await engine.assembleContext(promptText, 900)
 							if (packed.snippets.length > 0) {
-								promptText += `\n\n[Context Focus Snippets (${packed.totalEstimatedTokens} tokens)]:`
-								for (const s of packed.snippets.slice(0, 3)) {
+								if (packed.symbolOutline) {
+									promptText += `\n\n[AST Symbol Map (exact line ranges — use read_files with start_line/end_line if more lines are needed)]:\n${packed.symbolOutline}`
+								}
+								promptText += `\n\n[Context Focus Snippets (${packed.totalEstimatedTokens}/900 tokens)]:`
+								for (const s of packed.snippets) {
 									promptText += `\n--- ${s.path} (L${s.lines[0]}-L${s.lines[1]}) ---\n${s.content}\n`
 								}
 
+								const distinctFileCount = new Set(packed.snippets.map((s) => s.path)).size
 								// Criterion B1 requirement: "the agent shows which files it chose and why"
-								// Emit an explainability notice so the user visibly sees selected files and ranking rationales in the chat
 								const explainSummary = [
-									`🎯 **Context Assembly Strategy (Criterion B1)**: Selected ${packed.snippets.length} relevant files (${packed.totalEstimatedTokens}/900 tokens budget via AST & lexical ranking):`,
-									...packed.explainability.slice(0, 4).map((e) => `• ${e}`),
+									`🎯 **Context Assembly Strategy (Criterion B1)**: Selected ${distinctFileCount} relevant files / ${packed.snippets.length} AST slices (${packed.totalEstimatedTokens}/900 tokens budget via AST, IDF-lexical & dependency-graph ranking):`,
+									...packed.explainability.slice(0, 5).map((e) => `• ${e}`),
 								].join("\n")
 
 								this.emitAgentEvent(session.clineSessionId, {
@@ -456,6 +463,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 									iterationLimit: 50,
 									sandbox: { enabled: false, fileDownloads: false },
 									askUserQuestions: { enabled: true },
+									contextManagement: {
+										compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
+										largeToolResponse: { enabled: true },
+									},
 								}
 								await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
 								session.modelId = fallbackCandidate.name
@@ -774,6 +785,18 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 							break
 						}
 
+						case "thread.context_compaction_finished": {
+							const trigger = (ev as any).trigger
+							Logger.log(
+								`[TrueForgeSessionHost] Context compacted (tokens=${trigger?.contextTokens ?? "?"}, threshold=${trigger?.thresholdTokens ?? "?"})`,
+							)
+							this.emitAgentEvent(session.clineSessionId, {
+								type: "notice",
+								message: `🗜️ TrueForge context compacted automatically (at ${trigger?.contextTokens ?? "threshold"} tokens) to keep prompt size lean.`,
+							})
+							break
+						}
+
 						case "turn.done": {
 							closeOpenTextAndReasoning()
 							if (ev.state.status === "error") {
@@ -821,6 +844,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 									iterationLimit: 50,
 									sandbox: { enabled: false, fileDownloads: false },
 									askUserQuestions: { enabled: true },
+									contextManagement: {
+										compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
+										largeToolResponse: { enabled: true },
+									},
 								}
 								await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
 								session.modelId = fallbackCandidate.name

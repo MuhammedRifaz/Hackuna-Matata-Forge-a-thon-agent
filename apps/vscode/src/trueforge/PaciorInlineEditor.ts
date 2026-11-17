@@ -58,7 +58,7 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 
 	await vscode.window.withProgress(
 		{
-			location: vscode.ProgressLocation.Notification,
+			location: vscode.ProgressLocation.Window,
 			title: "Pacior Inline Edit: Generating changes...",
 			cancellable: true,
 		},
@@ -163,11 +163,11 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 			title: `${filePath} (Diff Review: Inline Edit)`,
 		})
 
-		// Use a persistent QuickPick modal UI so it never auto-dismisses like a notification
+		// Use a persistent QuickPick modal UI that requires explicit selection
 		// and allows immediate keyboard selection (Enter to Accept, Down+Enter or Esc to Reject)
 		const qp = vscode.window.createQuickPick()
 		qp.title = `Pacior Inline Edit Diff Review: ${path.basename(filePath)}`
-		qp.placeholder = "Select an action (or press Enter to Accept, Esc to Reject)"
+		qp.placeholder = "Choose an action: Enter to Accept, Esc / Down+Enter to Reject"
 		qp.items = [
 			{
 				label: "$(check) Accept and Apply Changes",
@@ -201,13 +201,9 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 			const edit = new vscode.WorkspaceEdit()
 			edit.replace(document.uri, targetRange, cleanedReplacement)
 			const success = await vscode.workspace.applyEdit(edit)
-			if (success) {
-				vscode.window.showInformationMessage("Pacior Inline Edit: Applied changes successfully.")
-			} else {
+			if (!success) {
 				vscode.window.showErrorMessage("Pacior Inline Edit: Failed to apply changes.")
 			}
-		} else {
-			vscode.window.showInformationMessage("Pacior Inline Edit: Edit rejected, original code preserved.")
 		}
 	} finally {
 		await editPreview.close()

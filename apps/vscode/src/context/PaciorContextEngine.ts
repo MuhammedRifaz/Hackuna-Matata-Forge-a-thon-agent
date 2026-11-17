@@ -223,55 +223,121 @@ export class PaciorContextEngine {
 	}
 
 	/**
-	 * Knapsack Context Packing
-	 * Selects the highest scoring snippets and packs them strictly within the tokenBudget.
+	 * Hybrid AST + IDF-Lexical + Dependency-Graph Knapsack Context Packing
+	 * Selects the highest scoring method/function/doc snippets across distinct file roles
+	 * (implementation, tests, docs) and packs them strictly within the tokenBudget.
 	 */
-	public async assembleContext(query: string, tokenBudget = 1800): Promise<{
+	public async assembleContext(query: string, tokenBudget = 900): Promise<{
 		snippets: Array<{ path: string; lines: [number, number]; score: number; reason: string; content: string }>
 		totalEstimatedTokens: number
 		explainability: string[]
+		symbolOutline: string
 	}> {
 		if (!this.cache || Object.keys(this.cache.fileMap).length === 0) {
-			return { snippets: [], totalEstimatedTokens: 0, explainability: ["Cache not ready, fallback active."] }
+			return {
+				snippets: [],
+				totalEstimatedTokens: 0,
+				explainability: ["Cache not ready, fallback active."],
+				symbolOutline: "",
+			}
 		}
 
 		const STOP_WORDS = new Set([
 			"the", "and", "that", "this", "with", "for", "from", "are", "was", "will", "have", "has", "had",
 			"not", "but", "all", "any", "can", "must", "other", "into", "also", "your", "its", "each", "both",
-			"than", "then", "them", "these", "those", "over", "such", "after", "when", "where", "which"
+			"than", "then", "them", "these", "those", "over", "such", "after", "when", "where", "which",
+			"add", "new", "built", "prints", "loaded", "values", "key", "keys", "containing", "appear",
+			"covered", "alongside", "should", "would", "could", "make", "using", "used", "need", "needs",
 		])
 
-		const keywords = query
+		const stemWord = (w: string): string => {
+			if (w.startsWith("document")) return "doc"
+			if (w.startsWith("test")) return "test"
+			if (w.endsWith("commands")) return "command"
+			if (w.endsWith("configs") || w === "configuration") return "config"
+			if (w.endsWith("routes")) return "route"
+			if (w.length > 5 && w.endsWith("ing")) return w.slice(0, -3)
+			if (w.length > 4 && w.endsWith("ed")) return w.slice(0, -2)
+			if (w.length > 4 && w.endsWith("s") && !w.endsWith("ss")) return w.slice(0, -1)
+			return w
+		}
+
+		const rawTokens = query
 			.toLowerCase()
 			.replace(/[^a-z0-9_]/g, " ")
 			.split(/\s+/)
 			.filter((k) => k.length > 2 && !STOP_WORDS.has(k))
 
+		const keywords = Array.from(new Set(rawTokens.flatMap((t) => [t, stemWord(t)])))
+		const queryLower = query.toLowerCase()
+		const wantsTests = /\b(test|tests|pytest|unittest|spec|coverage|covered)\b/i.test(queryLower)
+		const wantsDocs = /\b(doc|docs|document|documented|documentation|readme|rst|guide)\b/i.test(queryLower)
+
+		const allEntries = Object.entries(this.cache.fileMap)
+		const totalDocs = Math.max(1, allEntries.length)
+
+		// Compute Inverse Document Frequency (IDF) per keyword across indexed files
+		const docFreq = new Map<string, number>()
+		for (const kw of keywords) {
+			let df = 0
+			for (const [file, entry] of allEntries) {
+				const fLow = file.toLowerCase()
+				if (fLow.includes(kw)) {
+					df++
+					continue
+				}
+				const syms = entry.summary.symbols || []
+				if (syms.some((s) => s.name.toLowerCase().includes(kw) || (s.docstring || "").toLowerCase().includes(kw))) {
+					df++
+				}
+			}
+			docFreq.set(kw, df)
+		}
+		const idfOf = (kw: string): number => {
+			const df = docFreq.get(kw) || 0
+			return Math.log((totalDocs + 1) / (df + 1)) + 1.0
+		}
+
+		const getFileRole = (file: string): "impl" | "test" | "doc" => {
+			const f = file.replace(/\\/g, "/").toLowerCase()
+			if (f.startsWith("docs/") || f.startsWith("doc/") || f.endsWith(".rst") || f.endsWith(".md")) return "doc"
+			if (f.startsWith("tests/") || f.startsWith("test/") || f.includes("/test_") || f.endsWith("_test.py") || f.endsWith(".test.ts")) return "test"
+			return "impl"
+		}
+
+		const getModuleStem = (file: string): string => {
+			const base = path.basename(file, path.extname(file)).toLowerCase()
+			return base.replace(/^test_/, "").replace(/_test$/, "")
+		}
+
 		interface Candidate {
 			file: string
+			role: "impl" | "test" | "doc"
 			name?: string
 			start_line: number
 			end_line: number
 			score: number
-			reason: string
-			type: "symbol" | "skeleton" | "full"
+			reasons: string[]
+			type: "symbol" | "method" | "skeleton" | "full"
 		}
 
 		const candidates: Candidate[] = []
+		const fileBaseScores = new Map<string, number>()
 
 		// 0. Explicit @file and @symbol mentions (Competition Criterion 3: explicit mentions)
 		const explicitFiles = Array.from(query.matchAll(/@file\s+([^\s,]+)/gi)).map((m) => m[1].replace(/\\/g, "/"))
 		const explicitSymbols = Array.from(query.matchAll(/@symbol\s+([^\s,]+)/gi)).map((m) => m[1])
 
 		for (const targetFile of explicitFiles) {
-			for (const [file, entry] of Object.entries(this.cache.fileMap)) {
+			for (const [file, entry] of allEntries) {
 				if (file.toLowerCase().includes(targetFile.toLowerCase()) || targetFile.toLowerCase().includes(file.toLowerCase())) {
 					candidates.push({
 						file,
+						role: getFileRole(file),
 						start_line: 1,
-						end_line: Math.min(entry.summary.line_count, 60),
+						end_line: Math.min(entry.summary.line_count, 35),
 						score: 500,
-						reason: `Explicit @file mention '${targetFile}'`,
+						reasons: [`Explicit @file mention '${targetFile}'`],
 						type: "full",
 					})
 				}
@@ -279,15 +345,17 @@ export class PaciorContextEngine {
 		}
 
 		for (const targetSym of explicitSymbols) {
-			for (const [file, entry] of Object.entries(this.cache.fileMap)) {
+			for (const [file, entry] of allEntries) {
 				for (const sym of entry.summary.symbols || []) {
 					if (sym.name.toLowerCase() === targetSym.toLowerCase()) {
 						candidates.push({
 							file,
+							role: getFileRole(file),
+							name: sym.name,
 							start_line: sym.start_line,
 							end_line: sym.end_line,
 							score: 600,
-							reason: `Explicit @symbol mention '${targetSym}' resolved via AST`,
+							reasons: [`Explicit @symbol mention '${targetSym}' resolved via AST`],
 							type: "symbol",
 						})
 					}
@@ -295,156 +363,315 @@ export class PaciorContextEngine {
 			}
 		}
 
-		// 1. Score symbols from AST & Docs
-		for (const [file, entry] of Object.entries(this.cache.fileMap)) {
+		// 1. Score AST symbols, methods, decorators, and documentation sections with IDF weighting
+		for (const [file, entry] of allEntries) {
+			const role = getFileRole(file)
 			const symbols = entry.summary.symbols || []
 			const fileLower = file.toLowerCase()
-			let fileMatches = 0
+			const fileStem = getModuleStem(file)
+
+			// Compute IDF-weighted file path relevance (avoiding generic repo-wide noise)
+			let filePathScore = 0
+			const matchedFileKws: string[] = []
 			for (const kw of keywords) {
-				if (fileLower.includes(kw)) fileMatches++
+				if (kw === "test" || kw === "doc") continue // role handled separately
+				if (fileStem === kw) {
+					filePathScore += 35 * idfOf(kw)
+					matchedFileKws.push(kw)
+				} else if (fileLower.includes(kw)) {
+					filePathScore += 14 * idfOf(kw)
+					matchedFileKws.push(kw)
+				}
 			}
+			// Penalize examples/ and __init__ boilerplate slightly compared to core src/
+			const isExample = fileLower.startsWith("examples/") || fileLower.includes("/test_apps/")
+			if (isExample) filePathScore *= 0.3
+
+			let bestFileSymScore = filePathScore
 
 			for (const sym of symbols) {
-				let score = 0
+				let score = filePathScore
 				const reasons: string[] = []
+				if (matchedFileKws.length > 0) {
+					reasons.push(`Path matches '${matchedFileKws[0]}'`)
+				}
 				const symNameLower = sym.name.toLowerCase()
+				const decoratorsText = (sym.decorators || []).join(" ").toLowerCase()
+				const docLower = (sym.docstring || "").toLowerCase()
 
 				for (const kw of keywords) {
+					if (kw === "test" || kw === "doc") continue
+					const w = idfOf(kw)
 					if (symNameLower === kw) {
-						score += 80
-						reasons.push(`Exact match for symbol '${kw}'`)
+						score += 45 * w
+						reasons.push(`AST symbol '${sym.name}' exact match`)
 					} else if (symNameLower.includes(kw)) {
-						score += 40
-						reasons.push(`Symbol '${sym.name}' contains '${kw}'`)
+						score += 22 * w
+						reasons.push(`AST symbol '${sym.name}' matches '${kw}'`)
 					}
-					if (sym.docstring && sym.docstring.toLowerCase().includes(kw)) {
-						score += 15
+					if (decoratorsText && decoratorsText.includes(kw)) {
+						score += 20 * w
+						reasons.push(`Decorator matches '${kw}'`)
+					}
+					if (docLower && docLower.includes(kw)) {
+						score += 8 * w
 						reasons.push(`Docstring mentions '${kw}'`)
 					}
 				}
 
-				if (sym.methods) {
+				if (role === "impl" && !isExample) score += 18
+				if (role === "test" && wantsTests && !isExample) score += 15
+				if (role === "doc" && wantsDocs && !isExample) score += 12
+
+				const spanLines = sym.end_line - sym.start_line
+				// Generate method-level AST candidates for classes so __init__ / key methods rank directly (skipping giant class docstrings!)
+				if (sym.type === "class" && sym.methods && sym.methods.length > 0) {
 					for (const m of sym.methods) {
+						let mScore = filePathScore + (role === "impl" && !isExample ? 20 : 0)
+						const mReasons: string[] = [...reasons.slice(0, 1)]
+						const mNameLower = m.name.toLowerCase()
 						for (const kw of keywords) {
-							if (m.name.toLowerCase().includes(kw)) {
-								score += 30
-								reasons.push(`Method '${m.name}' matches '${kw}'`)
+							if (kw === "test" || kw === "doc") continue
+							const w = idfOf(kw)
+							if (mNameLower.includes(kw)) {
+								mScore += 28 * w
+								mReasons.push(`Method '${sym.name}.${m.name}' matches '${kw}'`)
 							}
 						}
+						// Boost constructor / command registration methods of high-scoring classes
+						if (m.name === "__init__" && score > 30) {
+							mScore = Math.max(mScore, score + 18)
+							mReasons.push(`Constructor '${sym.name}.__init__' (registers defaults/setup)`)
+						}
+						if (mScore > 15 && !isExample) {
+							bestFileSymScore = Math.max(bestFileSymScore, mScore)
+							candidates.push({
+								file,
+								role,
+								name: `${sym.name}.${m.name}`,
+								start_line: m.start_line,
+								end_line: m.end_line,
+								score: mScore,
+								reasons: Array.from(new Set(mReasons)),
+								type: "method",
+							})
+						}
+					}
+					// Penalize huge class headers so methods or focused functions win
+					if (spanLines > 100) {
+						score -= 35
 					}
 				}
 
-				// Directory tier scoring
-				score += fileMatches * 25
-				if (file.startsWith("src/")) score += 20
-				if (file.startsWith("tests/") || file.startsWith("test/")) score += 20
-				if (file.startsWith("docs/") || file.startsWith("doc/")) score += 15
-
-				// Boost symbols whose name or method aligns with keywords
-				for (const kw of keywords) {
-					if (file.toLowerCase().includes(kw)) score += 30
-					if (sym.name.toLowerCase().includes(kw)) score += 40
-				}
-
-				// Penalize huge classes (>200 lines) so targeted methods/functions or smaller classes rank higher
-				const spanLines = sym.end_line - sym.start_line
-				if (spanLines > 200) {
-					score -= 30
-				}
-
-				// Consolidate reasons into unique terms
-				const uniqueReasons = Array.from(new Set(reasons))
-				if (score > 0) {
+				if (score > 15 && !isExample) {
+					bestFileSymScore = Math.max(bestFileSymScore, score)
 					candidates.push({
 						file,
+						role,
 						name: sym.name,
 						start_line: sym.start_line,
 						end_line: sym.end_line,
 						score,
-						reason: uniqueReasons.slice(0, 2).join("; "),
+						reasons: Array.from(new Set(reasons)),
 						type: "symbol",
 					})
 				}
 			}
 
-			// Path keyword matching fallback
-			for (const kw of keywords) {
-				if (fileLower.includes(kw)) {
-					candidates.push({
-						file,
-						start_line: 1,
-						end_line: Math.min(80, entry.summary.line_count),
-						score: 25 + fileMatches * 10,
-						reason: `File path matches query keyword '${kw}'`,
-						type: "skeleton",
-					})
-					break
+			// Path fallback for files with few/no matching symbols
+			if (filePathScore > 15 && !isExample) {
+				candidates.push({
+					file,
+					role,
+					start_line: 1,
+					end_line: Math.min(35, entry.summary.line_count),
+					score: filePathScore,
+					reasons: [`File path matches '${matchedFileKws.slice(0, 2).join(", ")}'`],
+					type: "skeleton",
+				})
+			}
+
+			fileBaseScores.set(file, bestFileSymScore)
+		}
+
+		// 2. AST Dependency Graph & Counterpart Propagation
+		// Boost test files that import top implementation files, and doc files matching top implementation stems
+		const topImplFiles = Array.from(fileBaseScores.entries())
+			.filter(([f]) => getFileRole(f) === "impl" && !f.toLowerCase().startsWith("examples/"))
+			.sort((a, b) => b[1] - a[1])
+			.slice(0, 2)
+			.map(([f]) => f)
+
+		const topImplStems = new Set(topImplFiles.map(getModuleStem))
+		const depGraph = this.cache.dependencyGraph || {}
+
+		for (const cand of candidates) {
+			if (cand.role === "test") {
+				const importsTop = (depGraph[cand.file] || []).some((dep) => topImplFiles.includes(dep))
+				const stemMatchesTop = topImplStems.has(getModuleStem(cand.file))
+				if (importsTop || stemMatchesTop) {
+					cand.score += (importsTop ? 45 : 0) + (stemMatchesTop ? 55 : 0)
+					cand.reasons.unshift(
+						importsTop
+							? `AST dependency graph: imports '${topImplFiles[0]}'`
+							: `Test suite counterpart for '${topImplFiles[0]}'`,
+					)
+				}
+			} else if (cand.role === "doc") {
+				const stemMatchesTop = topImplStems.has(getModuleStem(cand.file))
+				if (stemMatchesTop) {
+					cand.score += 65
+					cand.reasons.unshift(`Documentation counterpart for '${topImplFiles[0]}'`)
 				}
 			}
 		}
 
-		// Sort by score descending
+		// Sort all candidates by final score descending
 		candidates.sort((a, b) => b.score - a.score)
 
-		// 2. Diversity Knapsack context packing across distinct files
+		// 3. Role-Aware Diversity Knapsack Packing strictly within tokenBudget
+		// Reserve space for the compact AST symbol outline (~140 tokens) so total stays strictly <= tokenBudget
+		const outlineBudget = Math.min(150, Math.floor(tokenBudget * 0.17))
+		const snippetBudget = Math.max(300, tokenBudget - outlineBudget)
+		const MAX_LINES_PER_SNIPPET = 22
+
 		let currentTokens = 0
 		const packedSnippets: Array<{ path: string; lines: [number, number]; score: number; reason: string; content: string }> = []
 		const explainability: string[] = []
 		const seenSpans = new Set<string>()
 		const fileSnippetCounts = new Map<string, number>()
 
-		for (const cand of candidates) {
-			const spanKey = `${cand.file}:${cand.start_line}-${cand.end_line}`
-			if (seenSpans.has(spanKey)) continue
-
-			// Max 2 snippets per file to enforce diversity across 3+ files (Task B requirement)
+		const tryPackCandidate = async (cand: Candidate, maxLines = MAX_LINES_PER_SNIPPET): Promise<boolean> => {
 			const fileCount = fileSnippetCounts.get(cand.file) || 0
-			if (fileCount >= 2) continue
+			if (fileCount >= 2) return false
 
 			try {
 				const fullPath = path.isAbsolute(cand.file) ? cand.file : path.join(this.workspaceRoot, cand.file)
 				const fileText = await fs.readFile(fullPath, "utf-8")
-				const lines = fileText.split("\n")
+				const lines = fileText.split(/\r?\n/)
 
+				// For methods/functions whose span is longer than maxLines, prefer the tail of __init__ if it contains registrations,
+				// or start at the signature line.
 				let startIdx = Math.max(0, cand.start_line - 1)
-				// Keep snippet to at most 50 lines to preserve token budget
-				const actualEnd = Math.min(lines.length, startIdx + 50)
-				const snippetLines = lines.slice(startIdx, actualEnd)
-				const content = snippetLines.join("\n")
+				const naturalEnd = Math.min(lines.length, Math.max(cand.end_line, cand.start_line + 10))
+				if (cand.type === "method" && cand.name?.endsWith(".__init__") && naturalEnd - startIdx > maxLines) {
+					startIdx = Math.max(startIdx, naturalEnd - maxLines)
+				}
+				const actualEnd = Math.min(lines.length, startIdx + maxLines, naturalEnd)
+				const spanKey = `${cand.file}:${startIdx + 1}-${actualEnd}`
+				if (seenSpans.has(spanKey)) return false
 
+				// Prevent overlapping spans within the same file
+				for (const existing of packedSnippets) {
+					if (existing.path === cand.file && !(actualEnd < existing.lines[0] || startIdx + 1 > existing.lines[1])) {
+						return false
+					}
+				}
+
+				const snippetLines = lines.slice(startIdx, actualEnd)
+				const content = snippetLines.map((l, idx) => `${startIdx + idx + 1} | ${l}`).join("\n")
 				const estimatedTokens = Math.ceil(content.length / 4)
-				if (currentTokens + estimatedTokens > tokenBudget && packedSnippets.length >= 2) {
-					continue
+
+				// Strictly enforce token budget (never exceed snippetBudget)
+				if (currentTokens + estimatedTokens > snippetBudget) {
+					// Try trimming to fit remaining budget if at least 10 lines fit
+					const remainingChars = (snippetBudget - currentTokens) * 4
+					if (remainingChars < 280) return false
+					let acc = ""
+					let fitCount = 0
+					for (let i = 0; i < snippetLines.length; i++) {
+						const lineStr = `${startIdx + i + 1} | ${snippetLines[i]}\n`
+						if (acc.length + lineStr.length > remainingChars) break
+						acc += lineStr
+						fitCount++
+					}
+					if (fitCount < 8) return false
+					const trimmedEnd = startIdx + fitCount
+					const trimmedTokens = Math.ceil(acc.length / 4)
+					seenSpans.add(`${cand.file}:${startIdx + 1}-${trimmedEnd}`)
+					fileSnippetCounts.set(cand.file, fileCount + 1)
+					currentTokens += trimmedTokens
+					const reasonText = cand.reasons.slice(0, 2).join("; ") || "AST lexical match"
+					packedSnippets.push({
+						path: cand.file,
+						lines: [startIdx + 1, trimmedEnd],
+						score: Math.round(cand.score),
+						reason: reasonText,
+						content: acc.trimEnd(),
+					})
+					explainability.push(`[${cand.file} L${startIdx + 1}-L${trimmedEnd}] (~${trimmedTokens} tok) — ${reasonText}`)
+					return true
 				}
 
 				seenSpans.add(spanKey)
 				fileSnippetCounts.set(cand.file, fileCount + 1)
 				currentTokens += estimatedTokens
+				const reasonText = cand.reasons.slice(0, 2).join("; ") || "AST lexical match"
 
 				packedSnippets.push({
 					path: cand.file,
-					lines: [cand.start_line, actualEnd],
-					score: cand.score,
-					reason: cand.reason,
+					lines: [startIdx + 1, actualEnd],
+					score: Math.round(cand.score),
+					reason: reasonText,
 					content,
 				})
-
-				explainability.push(
-					`[${cand.file} L${cand.start_line}-L${actualEnd}] (~${estimatedTokens} tokens) - ${cand.reason}`
-				)
-
-				if (currentTokens >= tokenBudget) {
-					break
-				}
+				explainability.push(`[${cand.file} L${startIdx + 1}-L${actualEnd}] (~${estimatedTokens} tok) — ${reasonText}`)
+				return true
 			} catch {
-				// Ignore file access errors
+				return false
 			}
 		}
 
+		// Phase A: Guarantee multi-role coverage (1 top impl + 1 top test if wantsTests + 1 top doc if wantsDocs)
+		const topImpl = candidates.find((c) => c.role === "impl")
+		if (topImpl) await tryPackCandidate(topImpl, 22)
+
+		if (wantsTests) {
+			const topTest = candidates.find((c) => c.role === "test")
+			if (topTest) await tryPackCandidate(topTest, 20)
+		}
+
+		if (wantsDocs) {
+			const topDoc = candidates.find((c) => c.role === "doc")
+			if (topDoc) await tryPackCandidate(topDoc, 18)
+		}
+
+		// Phase B: Fill remaining budget greedily with next highest-scoring non-overlapping candidates (e.g. class __init__ / 2nd key symbol)
+		for (const cand of candidates) {
+			if (currentTokens >= snippetBudget - 60 || packedSnippets.length >= 4) break
+			await tryPackCandidate(cand, 22)
+		}
+
+		// 4. Build compact AST Symbol Outline of the TOP-SCORED symbols for each selected file
+		const selectedFiles = Array.from(new Set(packedSnippets.map((s) => s.path)))
+		const outlineLines: string[] = []
+		for (const file of selectedFiles) {
+			const entry = this.cache.fileMap[file]
+			if (!entry) continue
+			const topFileCands = candidates
+				.filter((c) => c.file === file && c.name)
+				.slice(0, 6)
+				.map((c) => `${c.name}(L${c.start_line}-${c.end_line})`)
+			const uniqueTop = Array.from(new Set(topFileCands))
+			const fallbackSyms =
+				uniqueTop.length > 0
+					? uniqueTop
+					: (entry.summary.symbols || []).slice(0, 6).map((s) => `${s.name}(L${s.start_line}-${s.end_line})`)
+			if (fallbackSyms.length > 0) {
+				outlineLines.push(`- ${file} (${entry.summary.line_count}L): ${fallbackSyms.join(", ")}`)
+			}
+		}
+		let symbolOutline = outlineLines.join("\n")
+		if (Math.ceil(symbolOutline.length / 4) > outlineBudget) {
+			symbolOutline = symbolOutline.slice(0, outlineBudget * 4)
+		}
+		const finalTokens = currentTokens + Math.ceil(symbolOutline.length / 4)
+
 		return {
 			snippets: packedSnippets,
-			totalEstimatedTokens: currentTokens,
+			totalEstimatedTokens: finalTokens,
 			explainability,
+			symbolOutline,
 		}
 	}
 }

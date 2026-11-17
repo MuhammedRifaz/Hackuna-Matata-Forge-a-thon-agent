@@ -1,4 +1,4 @@
-import { exec } from "node:child_process"
+import { exec, execFile } from "node:child_process"
 import * as fsSync from "node:fs"
 import * as fs from "node:fs/promises"
 import * as http from "node:http"
@@ -10,10 +10,11 @@ import { Logger } from "@/shared/services/Logger"
 import { PaciorContextEngine } from "@/context/PaciorContextEngine"
 
 const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 const IGNORED_DIRS = new Set([".git", ".pacior", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", ".next", ".cache"])
-const MAX_READ_LINES = 60
-const MAX_SEARCH_MATCHES = 10
+const MAX_READ_LINES = 80
+const MAX_SEARCH_MATCHES = 20
 const MAX_LIST_ENTRIES = 100
 const DEFAULT_COMMAND_TIMEOUT_MS = 120_000
 
@@ -202,6 +203,7 @@ export class WorkspaceMcpServer {
 	private server: http.Server | undefined
 	private listeningUrl: string | undefined
 	private readonly originalFileSnapshots = new Map<string, { absPath: string; content: string | null; existed: boolean }>()
+	private readonly healthyPythonPathsCache = new Map<string, string[]>()
 
 	constructor(private readonly options: WorkspaceMcpServerOptions) {}
 
@@ -568,7 +570,7 @@ export class WorkspaceMcpServer {
 	}
 
 	private async handleSearchFiles(args: Record<string, unknown>, workspaceRoot: string): Promise<string> {
-		const pattern = String(args.regex ?? "")
+		const pattern = String(args.regex ?? args.pattern ?? args.query ?? "")
 		if (!pattern) {
 			throw new Error("search_files requires non-empty 'regex'")
 		}
@@ -708,6 +710,111 @@ export class WorkspaceMcpServer {
 		return `Wrote ${rawPath}`
 	}
 
+	/**
+	 * Dynamically discovers the healthiest Python interpreter for a Python workspace.
+	 * On hosts with multiple Python versions (e.g. an incompatible pre-release or broken venv alongside a working version),
+	 * probes candidate interpreters with `pytest --collect-only -q` on a workspace test file so `python` and `pytest`
+	 * always resolve to the working environment automatically.
+	 */
+	private async resolveHealthyPythonPaths(workspaceRoot: string, baseEnv: NodeJS.ProcessEnv): Promise<string[]> {
+		const cached = this.healthyPythonPathsCache.get(workspaceRoot)
+		if (cached) return cached
+
+		const isWin = process.platform === "win32"
+		const testsDir = fsSync.existsSync(path.join(workspaceRoot, "tests"))
+			? path.join(workspaceRoot, "tests")
+			: fsSync.existsSync(path.join(workspaceRoot, "test"))
+				? path.join(workspaceRoot, "test")
+				: undefined
+
+		// Only probe Python interpreters for workspaces that contain Python project markers
+		const isPythonProject =
+			fsSync.existsSync(path.join(workspaceRoot, "pyproject.toml")) ||
+			fsSync.existsSync(path.join(workspaceRoot, "setup.py")) ||
+			Boolean(testsDir)
+
+		if (!isPythonProject) {
+			this.healthyPythonPathsCache.set(workspaceRoot, [])
+			return []
+		}
+
+		const candidateExes: string[] = []
+		const addExe = (exe: string) => {
+			const clean = exe.trim()
+			if (!clean || clean.toLowerCase().includes("windowsapps")) return
+			if (fsSync.existsSync(clean) && !candidateExes.some((c) => c.toLowerCase() === clean.toLowerCase())) {
+				candidateExes.push(clean)
+			}
+		}
+
+		if (isWin) {
+			addExe(path.join(workspaceRoot, ".venv", "Scripts", "python.exe"))
+			addExe(path.join(workspaceRoot, "venv", "Scripts", "python.exe"))
+			// Discover all registered Python interpreters via Windows py launcher and PATH
+			try {
+				const { stdout } = await execAsync("py -0p", { timeout: 3000 })
+				for (const line of stdout.split(/\r?\n/)) {
+					const m = line.match(/([a-zA-Z]:\\[^\r\n]+python\.exe)/i)
+					if (m) addExe(m[1])
+				}
+			} catch {}
+			try {
+				const { stdout } = await execAsync("where python", { timeout: 3000 })
+				for (const line of stdout.split(/\r?\n/)) addExe(line)
+			} catch {}
+		} else {
+			addExe(path.join(workspaceRoot, ".venv", "bin", "python"))
+			addExe(path.join(workspaceRoot, "venv", "bin", "python"))
+			try {
+				const { stdout } = await execAsync("which -a python3 python", { timeout: 3000 })
+				for (const line of stdout.split(/\r?\n/)) addExe(line)
+			} catch {}
+		}
+
+		for (const exe of candidateExes) {
+			try {
+				// Probe full test collection across the test directory so any ImportError/incompatibility disqualifies a broken interpreter
+				const probeArgs = testsDir
+					? ["-m", "pytest", "--collect-only", "-q", testsDir]
+					: ["-m", "pytest", "--version"]
+				await execFileAsync(exe, probeArgs, {
+					cwd: workspaceRoot,
+					env: baseEnv,
+					timeout: 8000,
+				})
+				const exeDir = path.dirname(exe)
+				const scriptsDir = isWin ? path.join(exeDir, "Scripts") : path.join(exeDir, "bin")
+				const result = [exeDir, ...(fsSync.existsSync(scriptsDir) ? [scriptsDir] : [])]
+				Logger.log(`[WorkspaceMcpServer] Selected healthy Python environment: ${exe}`)
+				this.healthyPythonPathsCache.set(workspaceRoot, result)
+				return result
+			} catch {
+				// Try next interpreter
+			}
+		}
+
+		this.healthyPythonPathsCache.set(workspaceRoot, [])
+		return []
+	}
+
+	/**
+	 * Safely prepends directories to PATH on both Windows (handling case-insensitive `Path` vs `PATH`) and POSIX.
+	 */
+	private prependToEnvPath(env: NodeJS.ProcessEnv, dirs: string[], isWin: boolean): void {
+		if (dirs.length === 0) return
+		const sep = isWin ? ";" : ":"
+		// Find existing PATH value regardless of casing (Windows uses `Path`)
+		let existingPath = ""
+		for (const key of Object.keys(env)) {
+			if (key.toLowerCase() === "path") {
+				if (!existingPath && env[key]) existingPath = env[key]!
+				delete env[key]
+			}
+		}
+		const newPath = existingPath ? `${dirs.join(sep)}${sep}${existingPath}` : dirs.join(sep)
+		env[isWin ? "Path" : "PATH"] = newPath
+	}
+
 	private async handleRunCommands(
 		args: Record<string, unknown>,
 		workspaceRoot: string,
@@ -748,13 +855,11 @@ export class WorkspaceMcpServer {
 		const sep = isWin ? ";" : ":"
 		env.PYTHONPATH = env.PYTHONPATH ? `${extraPaths.join(sep)}${sep}${env.PYTHONPATH}` : extraPaths.join(sep)
 
-		// Discover and prepend active Python interpreter environment dynamically
+		// Discover and prepend the healthiest Python interpreter environment dynamically
+		const healthyPythonDirs = await this.resolveHealthyPythonPaths(workspaceRoot, env)
 		if (isWin) {
-			const venvScripts = path.join(workspaceRoot, ".venv", "Scripts")
-			const venvScripts2 = path.join(workspaceRoot, "venv", "Scripts")
 			const prependPaths = [
-				venvScripts,
-				venvScripts2,
+				...healthyPythonDirs,
 				"C:\\Program Files\\Git\\usr\\bin",
 				"C:\\Program Files\\Git\\cmd",
 				"C:\\Program Files\\Git\\bin",
@@ -768,22 +873,16 @@ export class WorkspaceMcpServer {
 					return false
 				}
 			})
-			if (prependPaths.length > 0) {
-				env.PATH = `${prependPaths.join(";")};${env.PATH || ""}`
-			}
+			this.prependToEnvPath(env, prependPaths, true)
 		} else {
-			const venvBin = path.join(workspaceRoot, ".venv", "bin")
-			const venvBin2 = path.join(workspaceRoot, "venv", "bin")
-			const prependPaths = [venvBin, venvBin2].filter((p) => {
+			const prependPaths = [...healthyPythonDirs].filter((p) => {
 				try {
 					return fsSync.existsSync(p)
 				} catch {
 					return false
 				}
 			})
-			if (prependPaths.length > 0) {
-				env.PATH = `${prependPaths.join(":")}:${env.PATH || ""}`
-			}
+			this.prependToEnvPath(env, prependPaths, false)
 		}
 
 		for (const command of rawCommands) {
@@ -812,11 +911,11 @@ export class WorkspaceMcpServer {
 				if (/^dir\s+/i.test(normalizedCmd)) {
 					normalizedCmd = normalizedCmd.replace(/\//g, "\\").replace(/\\+$/, "")
 				}
-				// "find <dir> -name <pat>" polyfill for Windows
-				if (/^find\s+([^\s]+)\s+-name\s+["']?([^"']+)["']?/i.test(normalizedCmd)) {
-					const m = normalizedCmd.match(/^find\s+([^\s]+)\s+-name\s+["']?([^"']+)["']?/i)
+				// "find <dir> -name <pat>" polyfill for Windows (supports spaces in <dir>)
+				if (/^find\s+(.+?)\s+-name\s+["']?([^"']+)["']?/i.test(normalizedCmd)) {
+					const m = normalizedCmd.match(/^find\s+(.+?)\s+-name\s+["']?([^"']+)["']?/i)
 					if (m) {
-						let dir = m[1].replace(/\//g, "\\").replace(/\\+$/, "")
+						let dir = m[1].trim().replace(/^["']|["']$/g, "").replace(/\//g, "\\").replace(/\\+$/, "")
 						const pat = m[2]
 						normalizedCmd = `dir /s /b "${dir}\\${pat}"`
 					}
@@ -826,32 +925,9 @@ export class WorkspaceMcpServer {
 					normalizedCmd = normalizedCmd.replace(/^cat\s+/i, "type ")
 				}
 
-				// Auto-quote unquoted absolute Windows paths containing spaces (e.g. c:\Users\...\IIT Bombay - TrueForge Agent\...)
+				// Auto-quote unquoted absolute and relative Windows paths containing spaces
 				// Without quotes, commands like grep/pytest treat spaces as separate arguments/directories and fail or hang
-				normalizedCmd = normalizedCmd.replace(
-					/(^|[\s=])([a-zA-Z]:\\[^\r\n"|><&]+?)(\s*$|\s+(?=[|><&]))/g,
-					(match, prefix, filePath, suffix) => {
-						const trimmed = filePath.trim()
-						if (trimmed.includes(" ") && fsSync.existsSync(trimmed)) {
-							return `${prefix}"${trimmed}"${suffix}`
-						}
-						return match
-					},
-				)
-				// Auto-quote unquoted relative paths in workspaceRoot if they contain spaces and exist
-				if (workspaceRoot && workspaceRoot.includes(" ")) {
-					normalizedCmd = normalizedCmd.replace(
-						/(^|[\s=])([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9_\-]+)(\s*$|\s+(?=[|><&]))/g,
-						(match, prefix, filePath, suffix) => {
-							if (prefix.endsWith('"') || prefix.endsWith("'")) return match
-							const resolved = path.resolve(workspaceRoot, filePath.trim())
-							if (fsSync.existsSync(resolved)) {
-								return `${prefix}"${resolved}"${suffix}`
-							}
-							return match
-						},
-					)
-				}
+				normalizedCmd = this.quoteCommandPaths(normalizedCmd, workspaceRoot)
 			}
 
 			if (this.options.runCommandExecutor) {
@@ -906,5 +982,52 @@ export class WorkspaceMcpServer {
 		}
 
 		return lines.join("\n")
+	}
+
+	private quoteCommandPaths(cmd: string, workspaceRoot?: string): string {
+		let result = cmd
+		const absMatches = Array.from(cmd.matchAll(/(^|[\s=])([a-zA-Z]:\\[^\r\n"|><&]+)/g))
+		for (const match of absMatches) {
+			const prefix = match[1]
+			const rawPath = match[2]
+			if (rawPath.startsWith('"') || rawPath.startsWith("'")) continue
+			const tokens = rawPath.split(/\s+/)
+			let candidate = ""
+			let foundPath = ""
+			for (let i = 0; i < tokens.length; i++) {
+				candidate = candidate ? `${candidate} ${tokens[i]}` : tokens[i]
+				try {
+					if (fsSync.existsSync(candidate)) {
+						foundPath = candidate
+					}
+				} catch {}
+			}
+			if (foundPath && foundPath.includes(" ")) {
+				result = result.replace(`${prefix}${foundPath}`, `${prefix}"${foundPath}"`)
+			}
+		}
+
+		if (workspaceRoot && workspaceRoot.includes(" ")) {
+			const relMatches = Array.from(cmd.matchAll(/(^|[\s=])([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9_\-]+)/g))
+			for (const match of relMatches) {
+				const prefix = match[1]
+				const rawRel = match[2]
+				if (prefix.endsWith('"') || prefix.endsWith("'")) continue
+				try {
+					const resolved = path.resolve(workspaceRoot, rawRel.trim())
+					if (fsSync.existsSync(resolved) && resolved.includes(" ")) {
+						result = result.replace(`${prefix}${rawRel}`, `${prefix}"${resolved}"`)
+					}
+				} catch {}
+			}
+		}
+
+		// Prevent grep or commands from hanging on stdin on Windows
+		if (process.platform === "win32") {
+			if (/\bgrep\b/i.test(result) && !/[|<>]/.test(result)) {
+				result = `${result} <nul`
+			}
+		}
+		return result
 	}
 }

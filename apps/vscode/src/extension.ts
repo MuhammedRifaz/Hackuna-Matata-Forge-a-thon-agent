@@ -540,6 +540,18 @@ ${ctx.cellJson || "{}"}
 		vscode.commands.registerCommand("cline.inlineEdit", async () => {
 			await vscode.commands.executeCommand("pacior.inlineEdit")
 		}),
+		vscode.commands.registerCommand("pacior.acceptAction", async () => {
+			const task = webview.controller?.task
+			if (task?.handleWebviewAskResponse) {
+				await task.handleWebviewAskResponse("yesButtonClicked", "", [])
+			}
+		}),
+		vscode.commands.registerCommand("pacior.rejectAction", async () => {
+			const task = webview.controller?.task
+			if (task?.handleWebviewAskResponse) {
+				await task.handleWebviewAskResponse("noButtonClicked", "", [])
+			}
+		}),
 	)
 
 	// Listen for secrets changes (cross-window login/logout sync).

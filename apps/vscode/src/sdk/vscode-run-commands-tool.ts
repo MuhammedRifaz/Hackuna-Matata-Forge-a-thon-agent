@@ -94,12 +94,40 @@ function quoteShellArg(arg: string): string {
 	return `'${arg.replace(/'/g, `'\\''`)}'`
 }
 
+function autoQuoteCommandPaths(cmd: string): string {
+	if (process.platform !== "win32") {
+		return cmd
+	}
+	let result = cmd
+	const absMatches = Array.from(cmd.matchAll(/(^|[\s=])([a-zA-Z]:\\[^\r\n"|><&]+)/g))
+	for (const match of absMatches) {
+		const prefix = match[1]
+		const rawPath = match[2]
+		if (rawPath.startsWith('"') || rawPath.startsWith("'")) continue
+		const tokens = rawPath.split(/\s+/)
+		let candidate = ""
+		let foundPath = ""
+		for (let i = 0; i < tokens.length; i++) {
+			candidate = candidate ? `${candidate} ${tokens[i]}` : tokens[i]
+			try {
+				if (fs.existsSync(candidate)) {
+					foundPath = candidate
+				}
+			} catch {}
+		}
+		if (foundPath && foundPath.includes(" ")) {
+			result = result.replace(`${prefix}${foundPath}`, `${prefix}"${foundPath}"`)
+		}
+	}
+	return result
+}
+
 export function formatCommandForTerminal(command: ShellCommand): string {
 	if (typeof command === "string") {
-		return command
+		return autoQuoteCommandPaths(command)
 	}
 	if (!("args" in command)) {
-		return command.command
+		return autoQuoteCommandPaths(command.command)
 	}
 	return [command.command, ...(command.args ?? [])].map(quoteShellArg).join(" ")
 }

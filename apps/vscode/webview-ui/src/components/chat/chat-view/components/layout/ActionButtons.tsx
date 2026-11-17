@@ -140,6 +140,24 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 				}
 			}
 
+			// Alt+Y: quick Approve even while typing; Alt+N: quick Reject even while typing
+			if (event.altKey && (event.key === "y" || event.key === "Y")) {
+				if (buttonConfig.primaryAction && canInteract) {
+					event.preventDefault()
+					event.stopPropagation()
+					handleActionClick(createActionInvocation(buttonConfig.primaryAction, getDraftSnapshot))
+					return
+				}
+			}
+			if (event.altKey && (event.key === "n" || event.key === "N")) {
+				if (buttonConfig.secondaryAction && canInteract) {
+					event.preventDefault()
+					event.stopPropagation()
+					handleActionClick(createActionInvocation(buttonConfig.secondaryAction, getDraftSnapshot))
+					return
+				}
+			}
+
 			// Shortcut: 'y' for Yes/Approve, 'n' for No/Reject when NOT typing in input
 			if (!isTyping && !event.ctrlKey && !event.metaKey && !event.altKey) {
 				if ((event.key === "y" || event.key === "Y") && buttonConfig.primaryAction && canInteract) {

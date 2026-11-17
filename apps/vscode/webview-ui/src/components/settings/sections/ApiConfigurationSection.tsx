@@ -242,13 +242,13 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 				<div className="flex flex-col gap-4">
 					{/* Pacior Brand & Runtime Status Header */}
 					<div className="flex flex-col gap-3 p-3.5 rounded-lg border border-[var(--vscode-panel-border)] bg-[var(--vscode-editorWidget-background)]">
-						<div className="flex items-center justify-between gap-2">
+						<div className="flex flex-wrap items-center justify-between gap-2">
 							<div className="flex items-center gap-2 min-w-0">
 								<PaciorIcon className="w-7 h-7 shrink-0" />
 								<PaciorWordmark className="h-5 w-auto max-w-[130px]" showLabs={true} />
 							</div>
 							<a
-								className="inline-flex items-center gap-1.5 text-xs text-[#B9E01E] hover:underline whitespace-nowrap shrink-0 font-medium"
+								className="inline-flex items-center gap-1.5 text-xs text-[#B9E01E] hover:underline whitespace-nowrap shrink-0 font-medium ml-auto"
 								href={cleanBaseUrl}
 								rel="noreferrer"
 								target="_blank">
@@ -257,7 +257,7 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 							</a>
 						</div>
 
-						<div className="flex items-center justify-between gap-2 pt-2 border-t border-[var(--vscode-panel-border)]/50">
+						<div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--vscode-panel-border)]/50">
 							<div className="flex items-center gap-2">
 								<span className="text-xs text-[var(--vscode-descriptionForeground)]">Status:</span>
 								{connected === true && (
@@ -279,7 +279,7 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 									</span>
 								)}
 							</div>
-							<VSCodeButton appearance="secondary" disabled={loading} onClick={() => void loadFromTrueForge()}>
+							<VSCodeButton appearance="secondary" disabled={loading} onClick={() => void loadFromTrueForge()} className="shrink-0">
 								<span className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap">
 									<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
 									Refresh

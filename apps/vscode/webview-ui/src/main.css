@@ -1,3 +1,18 @@
+:root {
+	--vscode-button-background: #B9E01E !important;
+	--vscode-button-foreground: #012E47 !important;
+	--vscode-button-hoverBackground: #a4c917 !important;
+	--vscode-focusBorder: #B9E01E !important;
+	--vscode-panelTitle-activeBorder: #B9E01E !important;
+	--vscode-tab-activeBorder: #B9E01E !important;
+	--vscode-tab-activeBorderTop: #B9E01E !important;
+	--vscode-activityBar-activeBorder: #B9E01E !important;
+	--vscode-editorGroupHeader-tabsBorder: #B9E01E !important;
+	--button-primary-background: #B9E01E !important;
+	--button-primary-foreground: #012E47 !important;
+	--button-primary-hover-background: #a4c917 !important;
+}
+
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #B9E01E);
 }
@@ -22,12 +37,34 @@ vscode-button[appearance="primary"]:hover::part(control) {
 	color: #012E47 !important;
 }
 
+/* Pacior Green Theme for UI Buttons and Header Actions (e.g. Done) */
+button[data-variant="default"],
+.bg-button-background,
+.bg-primary {
+	background-color: #B9E01E !important;
+	color: #012E47 !important;
+	font-weight: 600 !important;
+}
+
+button[data-variant="default"]:hover,
+.bg-button-background:hover,
+.bg-primary:hover {
+	background-color: #a4c917 !important;
+	color: #012E47 !important;
+}
+
+/* Pacior Green Active Tab Lines and Indicators */
+[role="tab"][aria-selected="true"] {
+	border-bottom-color: #B9E01E !important;
+	color: var(--vscode-foreground) !important;
+}
+
 vscode-button::part(control):focus {
 	outline: none;
 }
 
 vscode-button::part(control):focus-visible {
-	outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder, Highlight));
+	outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder, #B9E01E));
 	outline-offset: 2px;
 }
 

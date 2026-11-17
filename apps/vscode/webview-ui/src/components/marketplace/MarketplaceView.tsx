@@ -229,8 +229,9 @@ const MarketplaceStyles = () => (
 
 		.marketplace-tab[aria-selected="true"] {
 			background: var(--vscode-list-activeSelectionBackground);
-			color: var(--vscode-list-activeSelectionForeground);
-			border-bottom-color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			color: #B9E01E !important;
+			border-bottom-color: #B9E01E !important;
+			font-weight: 600;
 		}
 
 		.marketplace-tab-label {
@@ -312,8 +313,9 @@ const MarketplaceStyles = () => (
 		}
 
 		.marketplace-subtab[aria-selected="true"] {
-			color: var(--vscode-foreground);
-			border-bottom-color: var(--vscode-focusBorder);
+			color: #B9E01E !important;
+			border-bottom-color: #B9E01E !important;
+			font-weight: 600;
 		}
 
 		.marketplace-section {

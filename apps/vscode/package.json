@@ -185,6 +185,16 @@
 				"category": "Pacior Code"
 			},
 			{
+				"command": "pacior.acceptAction",
+				"title": "Accept Pending Tool / Action (Yes)",
+				"category": "Pacior Code"
+			},
+			{
+				"command": "pacior.rejectAction",
+				"title": "Reject Pending Tool / Action (No)",
+				"category": "Pacior Code"
+			},
+			{
 				"command": "cline.addTerminalOutputToChat",
 				"title": "Add to Pacior Code",
 				"category": "Pacior Code"
@@ -241,6 +251,20 @@
 			}
 		],
 		"keybindings": [
+			{
+				"command": "pacior.acceptAction",
+				"key": "alt+y",
+				"mac": "alt+y",
+				"win": "alt+y",
+				"linux": "alt+y"
+			},
+			{
+				"command": "pacior.rejectAction",
+				"key": "alt+n",
+				"mac": "alt+n",
+				"win": "alt+n",
+				"linux": "alt+n"
+			},
 			{
 				"command": "pacior.inlineEdit",
 				"key": "cmd+i",
