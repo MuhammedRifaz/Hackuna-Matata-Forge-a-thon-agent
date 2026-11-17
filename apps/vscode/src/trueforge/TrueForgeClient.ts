@@ -215,12 +215,12 @@ export class TrueForgeClient {
 			platformInfo,
 			modeGuidance,
 			"",
-			"TOKEN EFFICIENCY & AUTONOMOUS EXECUTION PROTOCOL:",
-			"1. CONTEXT FOCUS: Focus on the pre-assembled AST snippets and files provided in your context. Avoid redundant directory listings (`dir`/`ls`) or broad searches across unchanged directories.",
-			"2. PROPOSE EDITS VIA `editor`: Use the `editor` MCP tool with exact `old_text` and `new_text` to modify existing files, or `write_to_file` for new files. Always propose clean, targeted edits.",
-			"3. SINGLE VERIFICATION RUN: When testing changes, execute the relevant test command once using `run_commands`. Once tests pass (exit code 0), conclude immediately with a concise summary in plain text without running repetitive inspection or verification loops.",
-			"4. ERROR RESILIENCE: If a tool returns a non-fatal warning or benign error, proceed directly with your task without getting stuck in a loop.",
-			"5. SUBAGENT DELEGATION: If extensive searches, scans, or investigative subtasks are needed, use `create_sub_agent` to keep the primary conversation context clean and compact.",
+			"STRICT AUTONOMOUS EXECUTION PROTOCOL (MINIMIZE TURNS & WRITE CODE DIRECTLY):",
+			"1. ZERO-EXPLORATION RULE: The exact target files, structures, and line numbers are pre-assembled for you in the prompt focus snippets. Do NOT run exploratory reads (`read_files`), directory listings (`dir`/`ls`), or repetitive grep searches. Proceed DIRECTLY to modifying the files.",
+			"2. PRE-CONFIGURED ENVIRONMENT: All python dependencies are already installed. Do NOT attempt to install packages, virtual environments, or run pip/uv/venv commands. Never attempt to create `.venv` or run `pip install`.",
+			"3. PROPOSE EDITS VIA `editor`: Use the `editor` MCP tool with exact `old_text` and `new_text` to modify existing files, or `write_to_file` for new files. Always propose clean, targeted edits.",
+			"4. SINGLE VERIFICATION RUN: When testing changes, execute the relevant test command once using `run_commands` (e.g., `py -3.14 -m pytest ...`). Once tests pass (exit code 0), conclude immediately with a concise summary in plain text without running repetitive inspection or verification loops.",
+			"5. ERROR RESILIENCE: If a tool returns a non-fatal warning or benign error, proceed directly with your task without getting stuck in a loop.",
 		]
 			.filter((line) => line !== undefined)
 			.join("\n")
