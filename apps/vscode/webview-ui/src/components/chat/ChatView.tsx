@@ -3,13 +3,14 @@ import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { combineHookSequences } from "@shared/combineHookSequences"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
+import { PostTaskDiffReviewBar, DiffReviewFile } from "./PostTaskDiffReviewBar"
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
@@ -83,6 +84,25 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setPendingResponse,
 		textAreaRef,
 	} = chatState
+
+	const [diffReviewState, setDiffReviewState] = useState<{ visible: boolean; files: DiffReviewFile[] }>({
+		visible: false,
+		files: [],
+	})
+
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data
+			if (message?.type === "pacior_diff_review" && message.pacior_diff_review) {
+				setDiffReviewState({
+					visible: Boolean(message.pacior_diff_review.visible),
+					files: message.pacior_diff_review.files || [],
+				})
+			}
+		}
+		window.addEventListener("message", handleMessage)
+		return () => window.removeEventListener("message", handleMessage)
+	}, [])
 
 	const displayMessages = useMemo(() => withPendingUserMessage(messages, pendingUserMessage), [messages, pendingUserMessage])
 
@@ -427,6 +447,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			</div>
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
 				{/* AutoApproveBar moved to Settings tab to keep chat interface clean & default off */}
+				<PostTaskDiffReviewBar visible={diffReviewState.visible} files={diffReviewState.files} />
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}

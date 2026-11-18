@@ -837,6 +837,12 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 											? ev.state.output.content
 											: finalText
 								}
+								try {
+									const { PaciorDiffReviewManager } = await import("./PaciorDiffReviewManager")
+									PaciorDiffReviewManager.getInstance().showReview()
+								} catch (revErr) {
+									Logger.warn(`[TrueForgeSessionHost] Failed to trigger diff review: ${revErr}`)
+								}
 							}
 							break
 						}

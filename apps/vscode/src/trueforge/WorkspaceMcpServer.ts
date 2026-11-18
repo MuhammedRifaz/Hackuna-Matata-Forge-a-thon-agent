@@ -222,10 +222,18 @@ export class WorkspaceMcpServer {
 				const content = await fs.readFile(absPath, "utf8")
 				this.originalFileSnapshots.set(absPath, { absPath, content, existed: true })
 				Logger.log(`[WorkspaceMcpServer] Snapshot taken for existing file: ${absPath}`)
+				const workspaceRoot = await this.options.getWorkspaceRoot()
+				const relPath = path.relative(workspaceRoot, absPath)
+				const { PaciorDiffReviewManager } = await import("./PaciorDiffReviewManager")
+				PaciorDiffReviewManager.getInstance().recordSnapshot(absPath, relPath, content)
 			}
 		} catch {
 			this.originalFileSnapshots.set(absPath, { absPath, content: null, existed: false })
 			Logger.log(`[WorkspaceMcpServer] Snapshot taken for new file: ${absPath}`)
+			const workspaceRoot = await this.options.getWorkspaceRoot()
+			const relPath = path.relative(workspaceRoot, absPath)
+			const { PaciorDiffReviewManager } = await import("./PaciorDiffReviewManager")
+			PaciorDiffReviewManager.getInstance().recordSnapshot(absPath, relPath, null)
 		}
 	}
 
@@ -645,27 +653,42 @@ export class WorkspaceMcpServer {
 		}
 
 		if (this.options.editorExecutor) {
-			return this.options.editorExecutor(editInput, workspaceRoot, context)
+			const res = await this.options.editorExecutor(editInput, workspaceRoot, context)
+			try {
+				const updated = await fs.readFile(absPath, "utf8")
+				const { PaciorDiffReviewManager } = await import("./PaciorDiffReviewManager")
+				void PaciorDiffReviewManager.getInstance().updateFileContent(absPath, updated)
+			} catch {}
+			return res
 		}
 
 		// Fallback direct filesystem write when no coordinator is injected (e.g. unit tests)
 		await fs.mkdir(path.dirname(absPath), { recursive: true })
+		let res = `Wrote ${rawPath}`
 		if (oldText === undefined && insertLine === undefined) {
 			await fs.writeFile(absPath, newText, "utf8")
-			return `Wrote ${rawPath}`
-		}
-		const existing = await fs.readFile(absPath, "utf8")
-		if (oldText !== undefined) {
-			if (!existing.includes(oldText)) {
-				throw new Error(`No replacement performed: old_text not found in ${rawPath}`)
+			res = `Wrote ${rawPath}`
+		} else {
+			const existing = await fs.readFile(absPath, "utf8")
+			if (oldText !== undefined) {
+				if (!existing.includes(oldText)) {
+					throw new Error(`No replacement performed: old_text not found in ${rawPath}`)
+				}
+				await fs.writeFile(absPath, existing.replace(oldText, () => newText), "utf8")
+				res = `Updated ${rawPath}`
+			} else {
+				const lines = existing.split(/\r?\n/)
+				lines.splice((insertLine ?? 1) - 1, 0, newText)
+				await fs.writeFile(absPath, lines.join("\n"), "utf8")
+				res = `Inserted into ${rawPath}`
 			}
-			await fs.writeFile(absPath, existing.replace(oldText, () => newText), "utf8")
-			return `Updated ${rawPath}`
 		}
-		const lines = existing.split(/\r?\n/)
-		lines.splice((insertLine ?? 1) - 1, 0, newText)
-		await fs.writeFile(absPath, lines.join("\n"), "utf8")
-		return `Inserted into ${rawPath}`
+		try {
+			const updated = await fs.readFile(absPath, "utf8")
+			const { PaciorDiffReviewManager } = await import("./PaciorDiffReviewManager")
+			void PaciorDiffReviewManager.getInstance().updateFileContent(absPath, updated)
+		} catch {}
+		return res
 	}
 
 	private async handleWriteToFile(
@@ -702,12 +725,20 @@ export class WorkspaceMcpServer {
 		const editInput: EditFileInput =
 			existing !== undefined ? { path: rawPath, old_text: existing, new_text: content } : { path: rawPath, new_text: content }
 
+		let writeResult = `Wrote ${rawPath}`
 		if (this.options.editorExecutor) {
-			return this.options.editorExecutor(editInput, workspaceRoot, context)
+			writeResult = await this.options.editorExecutor(editInput, workspaceRoot, context)
+		} else {
+			await fs.mkdir(path.dirname(absPath), { recursive: true })
+			await fs.writeFile(absPath, content, "utf8")
+			writeResult = `Wrote ${rawPath}`
 		}
-		await fs.mkdir(path.dirname(absPath), { recursive: true })
-		await fs.writeFile(absPath, content, "utf8")
-		return `Wrote ${rawPath}`
+		try {
+			const updated = await fs.readFile(absPath, "utf8")
+			const { PaciorDiffReviewManager } = await import("./PaciorDiffReviewManager")
+			void PaciorDiffReviewManager.getInstance().updateFileContent(absPath, updated)
+		} catch {}
+		return writeResult
 	}
 
 	/**

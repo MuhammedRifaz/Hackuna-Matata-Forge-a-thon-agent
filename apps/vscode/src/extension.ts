@@ -540,6 +540,13 @@ ${ctx.cellJson || "{}"}
 		vscode.commands.registerCommand("cline.inlineEdit", async () => {
 			await vscode.commands.executeCommand("pacior.inlineEdit")
 		}),
+	)
+
+	// Register Pacior Post-Task Diff Review Manager (CodeLens hunks & review bar)
+	const { PaciorDiffReviewManager } = await import("./trueforge/PaciorDiffReviewManager")
+	PaciorDiffReviewManager.register(context)
+
+	context.subscriptions.push(
 		vscode.commands.registerCommand("pacior.acceptAction", async () => {
 			const task = webview.controller?.task
 			if (task?.handleWebviewAskResponse) {

@@ -270,6 +270,20 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				})
 				break
 			}
+			case "pacior_diff_action": {
+				const diffAction = message.pacior_diff_action
+				if (!diffAction) break
+				const { PaciorDiffReviewManager } = await import("../../trueforge/PaciorDiffReviewManager")
+				const manager = PaciorDiffReviewManager.getInstance()
+				if (diffAction.action === "accept_all") {
+					await manager.acceptAll()
+				} else if (diffAction.action === "reject_all") {
+					await manager.rejectAll()
+				} else if (diffAction.action === "open_file" && diffAction.path) {
+					await manager.openFile(diffAction.path)
+				}
+				break
+			}
 			default: {
 				Logger.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
 			}
