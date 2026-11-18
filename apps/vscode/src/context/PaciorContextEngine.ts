@@ -325,6 +325,7 @@ export class PaciorContextEngine {
 			file: string
 			role: "impl" | "test" | "doc"
 			name?: string
+			docstring?: string
 			start_line: number
 			end_line: number
 			score: number
@@ -480,6 +481,7 @@ export class PaciorContextEngine {
 						file,
 						role,
 						name: sym.name,
+						docstring: sym.docstring || "",
 						start_line: sym.start_line,
 						end_line: sym.end_line,
 						score,
@@ -552,20 +554,23 @@ export class PaciorContextEngine {
 			if (cand.role === "test" && cand.name) {
 				const candNameLower = cand.name.toLowerCase()
 				for (const impl of topImplSyms) {
-					if (impl.stem.length > 3 && candNameLower.includes(impl.stem)) {
+					if (impl.stem.length >= 3 && candNameLower.includes(impl.stem)) {
 						cand.score += 120
 						cand.reasons.unshift(`AST symbol counterpart: tests '${impl.rawName}'`)
 						break
 					}
 				}
 			} else if (cand.role === "doc") {
-				const candNameLower = (cand.name || "").toLowerCase()
+				const candText = `${cand.name || ""} ${cand.docstring || ""}`.toLowerCase()
 				for (const impl of topImplSyms) {
-					if (impl.stem.length > 3 && candNameLower.includes(impl.stem)) {
-						cand.score += 120
+					if (impl.stem.length >= 3 && (candText.includes(impl.stem) || candText.includes(impl.rawName.toLowerCase()))) {
+						cand.score += 150
 						cand.reasons.unshift(`Documentation section for '${impl.rawName}'`)
 						break
 					}
+				}
+				if (wantsDocs && /\b(shell|run|built-in|builtin|command)\b/i.test(candText)) {
+					cand.score += 60
 				}
 			}
 		}

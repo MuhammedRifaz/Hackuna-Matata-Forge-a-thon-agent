@@ -932,6 +932,13 @@ export class WorkspaceMcpServer {
 					normalizedCmd = normalizedCmd.replace(/^cat\s+/i, "type ")
 				}
 
+				// Fix single-quoted "python -c 'code'" for Windows cmd.exe
+				if (/^python\s+-c\s+'([\s\S]+)'$/i.test(normalizedCmd)) {
+					const code = normalizedCmd.replace(/^python\s+-c\s+'/i, "").replace(/'$/, "")
+					const escaped = code.replace(/"/g, "'")
+					normalizedCmd = `python -c "${escaped}"`
+				}
+
 				// Auto-quote unquoted absolute and relative Windows paths containing spaces
 				// Without quotes, commands like grep/pytest treat spaces as separate arguments/directories and fail or hang
 				normalizedCmd = this.quoteCommandPaths(normalizedCmd, workspaceRoot)

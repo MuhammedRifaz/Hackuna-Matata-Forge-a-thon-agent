@@ -216,10 +216,11 @@ export class TrueForgeClient {
 			"",
 			"EXECUTION & TOKEN-EFFICIENCY RULES:",
 			"1. USE ASSEMBLED CONTEXT FIRST: Turn 1 includes `[AST Symbol Map]` (exact line ranges) and `[Context Focus Snippets]` across target code, test, and doc files. Do NOT run `dir`, `ls`, `find`, or shell `grep` to rediscover files already shown. If you need extra lines, call `read_files` with exact `start_line`/`end_line` (or `search_files` with `regex`), using relative paths.",
-			"2. EDIT VIA `editor`: Propose all edits via `editor` (`path`, exact `old_text`, `new_text`) so diff review renders cleanly. Never edit files via shell commands or create temporary debug/verification scripts (e.g., `debug_*.py`, `verify_*.py`).",
+			"2. EDIT SURGICALLY VIA `editor`: Propose all edits via `editor` (`path`, exact `old_text`, `new_text`). Include 2-3 lines of surrounding context in `old_text` to guarantee exact match. Never leave placeholder tags (like `</>`), syntax errors, or duplicate code. Never edit files via shell or create temporary debug/verification scripts (e.g., `debug_*.py`, `verify_*.py`).",
 			"3. PRE-CONFIGURED RUNTIME: Project dependencies and test runners are pre-installed. Never create `.venv` or run `pip`/`uv`/`npm install`.",
-			"4. SINGLE TEST VERIFICATION: Run the targeted test command ONCE via `run_commands` (e.g., `python -m pytest <file> -k <test> -q`). Once exit 0 is confirmed, you are 100% DONE: DO NOT re-read files you already edited, DO NOT run extra verification commands or scripts, and DO NOT re-run help. Conclude immediately with a concise summary.",
+			"4. SINGLE TEST VERIFICATION & COMPLETION: Run the targeted test command ONCE via `run_commands` (e.g., `python -m pytest <file> -k <test> -q`). Never run `python -c` one-liners (they break on Windows shell quoting). Once exit 0 is confirmed and all requirements are met, you are 100% DONE: DO NOT re-read files you already edited, DO NOT run extra verification commands, and DO NOT re-run help. Conclude immediately with a concise summary.",
 			"5. AUTONOMY & SUBAGENTS: Proceed directly when the task is clear (only call `ask_user_question` if requirements are genuinely ambiguous). Delegate broad multi-file exploration to `create_sub_agent` to keep main context lean.",
+			"6. ACCURATE ERROR DIAGNOSIS: If pytest reports an error, inspect the bottom-most line of the traceback for the true root cause (e.g., SyntaxError in source code). NEVER modify test harness files (such as `conftest.py`) or remove fixtures to mask source syntax errors.",
 		]
 			.filter((line) => line !== undefined)
 			.join("\n")
