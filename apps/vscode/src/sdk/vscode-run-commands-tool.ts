@@ -99,7 +99,7 @@ function autoQuoteCommandPaths(cmd: string): string {
 		return cmd
 	}
 	let result = cmd
-	const absMatches = Array.from(cmd.matchAll(/(^|[\s=])([a-zA-Z]:\\[^\r\n"|><&]+)/g))
+	const absMatches = Array.from(cmd.matchAll(/(^|[\s=])([a-zA-Z]:[\\\/][^\r\n"|><&]+)/g))
 	for (const match of absMatches) {
 		const prefix = match[1]
 		const rawPath = match[2]
@@ -118,6 +118,10 @@ function autoQuoteCommandPaths(cmd: string): string {
 		if (foundPath && foundPath.includes(" ")) {
 			result = result.replace(`${prefix}${foundPath}`, `${prefix}"${foundPath}"`)
 		}
+	}
+	const stripped = result.replace(/"[^"\\]*(?:\\.[^"\\]*)*"/g, "").replace(/'[^'\\]*(?:\\.[^'\\]*)*'/g, "")
+	if (/\bgrep\b/i.test(result) && !/[|<>]/.test(stripped)) {
+		result = `${result} <nul`
 	}
 	return result
 }

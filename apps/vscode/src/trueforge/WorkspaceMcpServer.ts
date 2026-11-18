@@ -832,7 +832,14 @@ export class WorkspaceMcpServer {
 						rawCommands = parsed.map(String)
 					}
 				} catch {
-					rawCommands = [args.commands]
+					const stringLiterals = Array.from(trimmed.matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/g))
+						.map((m) => m[1] ?? m[2])
+						.filter(Boolean)
+					if (stringLiterals.length > 0) {
+						rawCommands = stringLiterals
+					} else {
+						rawCommands = [trimmed.slice(1, -1).trim()]
+					}
 				}
 			} else {
 				rawCommands = [args.commands]
@@ -986,7 +993,7 @@ export class WorkspaceMcpServer {
 
 	private quoteCommandPaths(cmd: string, workspaceRoot?: string): string {
 		let result = cmd
-		const absMatches = Array.from(cmd.matchAll(/(^|[\s=])([a-zA-Z]:\\[^\r\n"|><&]+)/g))
+		const absMatches = Array.from(cmd.matchAll(/(^|[\s=])([a-zA-Z]:[\\\/][^\r\n"|><&]+)/g))
 		for (const match of absMatches) {
 			const prefix = match[1]
 			const rawPath = match[2]
@@ -1024,7 +1031,8 @@ export class WorkspaceMcpServer {
 
 		// Prevent grep or commands from hanging on stdin on Windows
 		if (process.platform === "win32") {
-			if (/\bgrep\b/i.test(result) && !/[|<>]/.test(result)) {
+			const stripped = result.replace(/"[^"\\]*(?:\\.[^"\\]*)*"/g, "").replace(/'[^'\\]*(?:\\.[^'\\]*)*'/g, "")
+			if (/\bgrep\b/i.test(result) && !/[|<>]/.test(stripped)) {
 				result = `${result} <nul`
 			}
 		}

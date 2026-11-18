@@ -42,6 +42,7 @@ export class PaciorContextEngine {
 	private static instance: PaciorContextEngine | null = null
 	private cache: RepoIndexCache | null = null
 	private isIndexing = false
+	private indexingPromise: Promise<void> | null = null
 	private workspaceRoot: string = ""
 	private progressListeners: Array<(status: { isIndexing: boolean; progress: number; message: string }) => void> = []
 
@@ -104,93 +105,97 @@ export class PaciorContextEngine {
 	}
 
 	public async startIndexingInBackground(workspaceRoot: string): Promise<void> {
-		if (this.isIndexing) return
+		if (this.isIndexing) return this.indexingPromise ?? Promise.resolve()
 		this.isIndexing = true
 		this.notifyProgress(10, "Scanning files for AST parsing...")
 
-		try {
-			// Locate analyzer script both in source and compiled dist/assets locations
-			const candidates = [
-				path.join(__dirname, "pacior_ast_analyzer.py"),
-				path.join(__dirname, "context", "pacior_ast_analyzer.py"),
-				path.join(__dirname, "..", "src", "context", "pacior_ast_analyzer.py"),
-			]
-			let analyzerScript = candidates[0]
-			for (const cand of candidates) {
-				try {
-					await fs.access(cand)
-					analyzerScript = cand
-					break
-				} catch {}
-			}
+		this.indexingPromise = (async () => {
+			try {
+				// Locate analyzer script both in source and compiled dist/assets locations
+				const candidates = [
+					path.join(__dirname, "pacior_ast_analyzer.py"),
+					path.join(__dirname, "context", "pacior_ast_analyzer.py"),
+					path.join(__dirname, "..", "src", "context", "pacior_ast_analyzer.py"),
+				]
+				let analyzerScript = candidates[0]
+				for (const cand of candidates) {
+					try {
+						await fs.access(cand)
+						analyzerScript = cand
+						break
+					} catch {}
+				}
 
-			const pythonCmd = process.platform === "win32" ? "python" : "python3"
+				const pythonCmd = process.platform === "win32" ? "python" : "python3"
 
-			const pyProc = spawn(pythonCmd, [analyzerScript, workspaceRoot])
-			let stdout = ""
-			let stderr = ""
+				const pyProc = spawn(pythonCmd, [analyzerScript, workspaceRoot])
+				let stdout = ""
+				let stderr = ""
 
-			pyProc.stdout.on("data", (d) => {
-				stdout += d.toString()
-			})
-			pyProc.stderr.on("data", (d) => {
-				stderr += d.toString()
-			})
-
-			await new Promise<void>((resolve, reject) => {
-				pyProc.on("close", (code) => {
-					if (code === 0) resolve()
-					else reject(new Error(`Analyzer exited with ${code}: ${stderr}`))
+				pyProc.stdout.on("data", (d) => {
+					stdout += d.toString()
 				})
-				pyProc.on("error", reject)
-			})
+				pyProc.stderr.on("data", (d) => {
+					stderr += d.toString()
+				})
 
-			const rawResults: Record<string, FileAstSummary> = JSON.parse(stdout)
-			const fileCount = Object.keys(rawResults).length
+				await new Promise<void>((resolve, reject) => {
+					pyProc.on("close", (code) => {
+						if (code === 0) resolve()
+						else reject(new Error(`Analyzer exited with ${code}: ${stderr}`))
+					})
+					pyProc.on("error", reject)
+				})
 
-			if (!this.cache) {
-				this.cache = {
-					version: 1,
-					timestamp: Date.now(),
-					workspaceRoot,
-					fileMap: {},
-					dependencyGraph: {},
-				}
-			}
+				const rawResults: Record<string, FileAstSummary> = JSON.parse(stdout)
+				const fileCount = Object.keys(rawResults).length
 
-			const depGraph: Record<string, string[]> = {}
-
-			for (const [relPath, summary] of Object.entries(rawResults)) {
-				this.cache.fileMap[relPath] = {
-					mtime: Date.now(),
-					summary,
-				}
-
-				// Build dependency edges
-				const dependencies: string[] = []
-				for (const imp of summary.imports) {
-					// Approximate module mapping: e.g. .cli -> flask/cli.py
-					const cleanMod = imp.module.replace(/^\.+/, "")
-					for (const candidate of Object.keys(rawResults)) {
-						if (candidate.includes(cleanMod) && candidate !== relPath) {
-							dependencies.push(candidate)
-						}
+				if (!this.cache) {
+					this.cache = {
+						version: 1,
+						timestamp: Date.now(),
+						workspaceRoot,
+						fileMap: {},
+						dependencyGraph: {},
 					}
 				}
-				depGraph[relPath] = Array.from(new Set(dependencies))
+
+				const depGraph: Record<string, string[]> = {}
+
+				for (const [relPath, summary] of Object.entries(rawResults)) {
+					this.cache.fileMap[relPath] = {
+						mtime: Date.now(),
+						summary,
+					}
+
+					// Build dependency edges
+					const dependencies: string[] = []
+					for (const imp of summary.imports) {
+						// Approximate module mapping: e.g. .cli -> flask/cli.py
+						const cleanMod = imp.module.replace(/^\.+/, "")
+						for (const candidate of Object.keys(rawResults)) {
+							if (candidate.includes(cleanMod) && candidate !== relPath) {
+								dependencies.push(candidate)
+							}
+						}
+					}
+					depGraph[relPath] = Array.from(new Set(dependencies))
+				}
+
+				this.cache.dependencyGraph = depGraph
+				this.cache.timestamp = Date.now()
+				await this.saveCache()
+
+				this.notifyProgress(100, `Indexed ${fileCount} files & symbols successfully.`)
+			} catch (err) {
+				Logger.error("[PaciorContextEngine] Background indexing failed:", err)
+				this.notifyProgress(0, `Indexing failed: ${err instanceof Error ? err.message : String(err)}`)
+			} finally {
+				this.isIndexing = false
 			}
+		})()
 
-			this.cache.dependencyGraph = depGraph
-			this.cache.timestamp = Date.now()
-			await this.saveCache()
-
-			this.notifyProgress(100, `Indexed ${fileCount} files & symbols successfully.`)
-		} catch (err) {
-			Logger.error("[PaciorContextEngine] Background indexing failed:", err)
-			this.notifyProgress(0, `Indexing failed: ${err instanceof Error ? err.message : String(err)}`)
-		} finally {
-			this.isIndexing = false
-		}
+		return this.indexingPromise
 	}
 
 	public getStatus() {
@@ -233,7 +238,13 @@ export class PaciorContextEngine {
 		explainability: string[]
 		symbolOutline: string
 	}> {
-		if (!this.cache || Object.keys(this.cache.fileMap).length === 0) {
+		if (!this.cache || Object.keys(this.cache.fileMap || {}).length === 0) {
+			if (this.indexingPromise) {
+				await Promise.race([this.indexingPromise, new Promise((r) => setTimeout(r, 6000))])
+			}
+		}
+
+		if (!this.cache || Object.keys(this.cache.fileMap || {}).length === 0) {
 			return {
 				snippets: [],
 				totalEstimatedTokens: 0,
@@ -522,6 +533,39 @@ export class PaciorContextEngine {
 				if (stemMatchesTop) {
 					cand.score += 65
 					cand.reasons.unshift(`Documentation counterpart for '${topImplFiles[0]}'`)
+				}
+			}
+		}
+
+		// 2b. AST Symbol Cross-Reference Boost
+		// Boost test and doc candidates that directly test or document the top matched implementation symbols
+		const topImplSyms = candidates
+			.filter((c) => c.role === "impl" && c.name)
+			.slice(0, 6)
+			.map((c) => {
+				const raw = c.name!
+				const stem = raw.split(/[\._]/)[0].toLowerCase()
+				return { rawName: raw, stem }
+			})
+
+		for (const cand of candidates) {
+			if (cand.role === "test" && cand.name) {
+				const candNameLower = cand.name.toLowerCase()
+				for (const impl of topImplSyms) {
+					if (impl.stem.length > 3 && candNameLower.includes(impl.stem)) {
+						cand.score += 120
+						cand.reasons.unshift(`AST symbol counterpart: tests '${impl.rawName}'`)
+						break
+					}
+				}
+			} else if (cand.role === "doc") {
+				const candNameLower = (cand.name || "").toLowerCase()
+				for (const impl of topImplSyms) {
+					if (impl.stem.length > 3 && candNameLower.includes(impl.stem)) {
+						cand.score += 120
+						cand.reasons.unshift(`Documentation section for '${impl.rawName}'`)
+						break
+					}
 				}
 			}
 		}
