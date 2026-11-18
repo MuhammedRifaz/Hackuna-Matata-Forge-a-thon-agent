@@ -30,6 +30,8 @@ import { createSessionId } from "@cline/shared"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
+import { StateManager } from "@/core/storage/StateManager"
+import { isToolAutoApproved } from "@/sdk/sdk-tool-policies"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkInitialMessages, SdkSessionHost } from "../sdk/session-host"
 import { formatTrueForgeError, TrueForgeClient } from "./TrueForgeClient"
@@ -169,6 +171,18 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		return host
 	}
 
+	private getEffectiveApprovalTools(): string[] {
+		try {
+			const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
+			if (!autoApprovalSettings) {
+				return DEFAULT_APPROVAL_TOOLS
+			}
+			return DEFAULT_APPROVAL_TOOLS.filter((tool) => !isToolAutoApproved(tool, autoApprovalSettings))
+		} catch {
+			return DEFAULT_APPROVAL_TOOLS
+		}
+	}
+
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void {
 		this.listeners.add(listener)
 		return () => {
@@ -225,7 +239,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			const resolved = await this.client.resolveAgentSpec({
 				cwd,
 				mode,
-				requireApprovalForTools: DEFAULT_APPROVAL_TOOLS,
+				requireApprovalForTools: this.getEffectiveApprovalTools(),
 			})
 			const tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
 
@@ -307,7 +321,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				const latest = await this.client.resolveAgentSpec({
 					cwd: session.cwd,
 					mode: session.mode,
-					requireApprovalForTools: DEFAULT_APPROVAL_TOOLS,
+					requireApprovalForTools: this.getEffectiveApprovalTools(),
 				})
 				if (session.failedModelIds.size > 0) {
 					latest.spec.model = { name: session.modelId }
@@ -455,7 +469,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								const latest = await this.client.resolveAgentSpec({
 									cwd: session.cwd,
 									mode: session.mode,
-									requireApprovalForTools: DEFAULT_APPROVAL_TOOLS,
+									requireApprovalForTools: this.getEffectiveApprovalTools(),
 								})
 								latest.spec.model = { name: fallbackCandidate.name }
 								latest.spec.config = {
@@ -672,7 +686,15 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 								let approved = true
 								let reason: string | undefined
-								if (this.options.requestToolApproval) {
+								const effectiveApprovalTools = this.getEffectiveApprovalTools()
+								const needsApproval =
+									effectiveApprovalTools.includes(rawToolName) ||
+									effectiveApprovalTools.includes(approvalPrep.displayToolName)
+
+								if (!needsApproval) {
+									Logger.log(`[TrueForgeSessionHost] Auto-approving ${rawToolName} based on user auto-approval settings`)
+									approved = true
+								} else if (this.options.requestToolApproval) {
 									const decision = await this.options.requestToolApproval({
 										agentId: session.agentName,
 										conversationId: session.clineSessionId,
@@ -836,7 +858,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								const latest = await this.client.resolveAgentSpec({
 									cwd: session.cwd,
 									mode: session.mode,
-									requireApprovalForTools: DEFAULT_APPROVAL_TOOLS,
+									requireApprovalForTools: this.getEffectiveApprovalTools(),
 								})
 								latest.spec.model = { name: fallbackCandidate.name }
 								latest.spec.config = {
@@ -948,7 +970,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						const latest = await this.client.resolveAgentSpec({
 							cwd: session.cwd,
 							mode: session.mode,
-							requireApprovalForTools: DEFAULT_APPROVAL_TOOLS,
+							requireApprovalForTools: this.getEffectiveApprovalTools(),
 						})
 						latest.spec.model = { name: fallbackCandidate.name }
 						await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
