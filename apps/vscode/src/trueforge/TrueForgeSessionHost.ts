@@ -485,9 +485,20 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
 								session.modelId = fallbackCandidate.name
 
+								const fallbackNoticeText = `⚠️ **TrueForge Resilient Model Fallback (Criterion B3)**: Primary model connection failed (${errMsg}). Automatically failed over to fallback model "${fallbackCandidate.name}" with zero files touched.`
 								this.emitAgentEvent(session.clineSessionId, {
 									type: "notice",
-									message: `⚠️ Primary model connection failed (${errMsg}). Automatically failed over to fallback model "${fallbackCandidate.name}" with zero files touched (satisfies Hackathon Task C & B3).`,
+									message: fallbackNoticeText,
+								})
+								this.emitAgentEvent(session.clineSessionId, {
+									type: "content_start",
+									contentType: "text",
+									text: `${fallbackNoticeText}\n\n`,
+								})
+								this.emitAgentEvent(session.clineSessionId, {
+									type: "content_end",
+									contentType: "text",
+									text: `${fallbackNoticeText}\n\n`,
 								})
 
 								return this.send(input)
@@ -880,9 +891,20 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
 								session.modelId = fallbackCandidate.name
 
+								const fallbackNoticeText = `⚠️ **TrueForge Resilient Model Fallback (Criterion B3)**: Primary model error (${turnErrorMessage}). Automatically failed over to fallback model "${fallbackCandidate.name}" with no user intervention needed.`
 								this.emitAgentEvent(session.clineSessionId, {
 									type: "notice",
-									message: `⚠️ Primary model error (${turnErrorMessage}). Automatically failed over to fallback model "${fallbackCandidate.name}" with no user intervention needed (satisfies Hackathon B3).`,
+									message: fallbackNoticeText,
+								})
+								this.emitAgentEvent(session.clineSessionId, {
+									type: "content_start",
+									contentType: "text",
+									text: `${fallbackNoticeText}\n\n`,
+								})
+								this.emitAgentEvent(session.clineSessionId, {
+									type: "content_end",
+									contentType: "text",
+									text: `${fallbackNoticeText}\n\n`,
 								})
 
 								// Retry once on the fallback model
@@ -982,9 +1004,20 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
 						session.modelId = fallbackCandidate.name
 
+						const fallbackNoticeText = `⚠️ **TrueForge Resilient Model Fallback (Criterion B3)**: Primary model error (${formatted.message}). Automatically failed over to fallback model "${fallbackCandidate.name}" with no user intervention needed.`
 						this.emitAgentEvent(session.clineSessionId, {
 							type: "notice",
-							message: `⚠️ Primary model error (${formatted.message}). Automatically failed over to fallback model "${fallbackCandidate.name}" with no user intervention needed (satisfies Hackathon B3).`,
+							message: fallbackNoticeText,
+						})
+						this.emitAgentEvent(session.clineSessionId, {
+							type: "content_start",
+							contentType: "text",
+							text: `${fallbackNoticeText}\n\n`,
+						})
+						this.emitAgentEvent(session.clineSessionId, {
+							type: "content_end",
+							contentType: "text",
+							text: `${fallbackNoticeText}\n\n`,
 						})
 
 						// Retry the send transparently on the fallback model

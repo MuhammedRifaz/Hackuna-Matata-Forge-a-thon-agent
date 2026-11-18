@@ -115,8 +115,8 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 					}
 				}
 
-				// Clean up temporary session
-				client.deleteSession(session.id).catch(() => {})
+				// Preserve session in TrueForge daemon for full transparency & inspection in history
+				Logger.log(`[executePaciorInlineEdit] Preserved inline session in TrueForge daemon: ${session.id}`)
 
 				if (token.isCancellationRequested) {
 					return

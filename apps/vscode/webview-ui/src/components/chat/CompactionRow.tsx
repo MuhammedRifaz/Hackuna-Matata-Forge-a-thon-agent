@@ -67,24 +67,27 @@ export const CompactionRow = ({ message }: { message: ClineMessage }) => {
 
 	const inProgress = info.status === "started"
 	const isFailed = info.status === "failed"
-	const isMuted = info.status === "skipped" || info.status === "cancelled"
 
 	return (
 		<div
-			className={cn("flex items-center gap-2 py-1.5 text-description", {
-				"text-error": isFailed,
-				"opacity-70": isMuted,
-			})}>
+			className={cn(
+				"border rounded-md p-2.5 my-2 shadow-sm flex items-center gap-2.5 select-none transition-all",
+				isFailed
+					? "border-red-500/60 bg-red-950/25 text-red-200"
+					: "border-sky-500/60 bg-sky-950/30 text-sky-200"
+			)}>
 			{inProgress ? (
-				<LoaderCircleIcon className="size-2 shrink-0 animate-spin" />
+				<LoaderCircleIcon className="size-4 shrink-0 animate-spin text-sky-400" />
 			) : (
-				<FoldVerticalIcon className="size-2 shrink-0" />
+				<FoldVerticalIcon className="size-4 shrink-0 text-sky-400" />
 			)}
-			<span className="min-w-0">
-				{formatCompactionLabel(info)}
-				{inProgress ? "…" : ""}
-			</span>
-			<div className="flex-1 min-w-4 border-t border-description/30" />
+			<div className="flex-1 min-w-0 text-xs">
+				<span className="font-semibold text-sky-300 mr-2">⚡ TrueForge Context Compaction (Criterion B4):</span>
+				<span className="font-mono text-[11px] text-sky-100">
+					{formatCompactionLabel(info)}
+					{inProgress ? "…" : ""}
+				</span>
+			</div>
 		</div>
 	)
 }
