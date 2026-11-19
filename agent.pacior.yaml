@@ -1,0 +1,57 @@
+# ==============================================================================
+# TrueForge Agent Specification - Pacior Code
+# File: agent.pacior.yaml
+# ==============================================================================
+# This specification defines the Pacior Code autonomous agent inside TrueForge.
+# When the Pacior extension connects to TrueForge (http://localhost:8790),
+# it automatically provisions or synchronizes this agent definition.
+# ==============================================================================
+
+name: "pacior"
+description: "Autonomous software engineering agent powered by TrueForge with AST context engine and post-task diff review."
+
+model:
+  name: "gemini/gemini-2.5-flash"
+  temperature: 0.0
+
+config:
+  iterationLimit: 80
+  askUserQuestions:
+    enabled: true
+  sandbox:
+    enabled: false
+    fileDownloads: false
+
+  # Harness Feature: Automatic Context Compaction (Criterion B2)
+  # Calibrated to 18,000 tokens to ensure lean prompt size (~200k-300k total tokens)
+  contextManagement:
+    compaction:
+      enabled: true
+      trigger:
+        type: "input_tokens"
+        value: 18000
+    largeToolResponse:
+      enabled: true
+
+  # Human-In-The-Loop Tool Approval Configuration (Criterion A3 & B4)
+  # When auto-approval is toggled OFF, TrueForge pauses on editor/run_commands
+  # and prompts the user for approval via VS Code.
+  toolApproval:
+    tools:
+      - "editor"
+      - "write_to_file"
+      - "run_commands"
+
+mcpServers:
+  # The extension dynamically hosts the WorkspaceMcpServer at runtime over 127.0.0.1
+  # and registers it as 'workspace' in TrueForge.
+  - name: "workspace"
+    type: "streamable_http"
+    tools:
+      - "read_files"
+      - "list_files"
+      - "search_files"
+      - "editor"
+      - "write_to_file"
+      - "run_commands"
+      - "assemble_context"

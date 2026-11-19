@@ -1,0 +1,114 @@
+# ==============================================================================
+# TrueForge Harness - Model Configuration Example
+# File: models.config.example.yaml
+# ==============================================================================
+# This file provides an example configuration for registering LLM providers
+# and models in the TrueForge Agent Harness (http://localhost:8790).
+#
+# Instructions:
+# 1. TrueForge can load providers via the Web UI (http://localhost:8790 -> Models)
+#    OR via environment variables (see .env.example)
+#    OR via this configuration specification when initializing TrueForge.
+# 2. Pacior Code dynamically lists all registered models from TrueForge and
+#    automatically routes to the best available model, with seamless fallback
+#    if rate limits or quota boundaries are encountered.
+# ==============================================================================
+
+version: "1.0"
+
+default_provider: "gemini"
+
+providers:
+  # ----------------------------------------------------------------------------
+  # 1. Google Gemini (Recommended Primary)
+  # ----------------------------------------------------------------------------
+  - id: "gemini"
+    name: "Google Gemini"
+    type: "gemini"
+    api_key: "${GEMINI_API_KEY}"
+    models:
+      - name: "gemini/gemini-2.5-flash"
+        display_name: "Gemini 2.5 Flash (Fast & Cost-Effective)"
+        context_window: 1048576
+        max_output_tokens: 8192
+        supports_tools: true
+        supports_streaming: true
+      - name: "gemini/gemini-2.5-pro"
+        display_name: "Gemini 2.5 Pro (High Reasoning)"
+        context_window: 2097152
+        max_output_tokens: 8192
+        supports_tools: true
+        supports_streaming: true
+
+  # ----------------------------------------------------------------------------
+  # 2. OpenRouter (Multi-Model Resilient Fallback)
+  # ----------------------------------------------------------------------------
+  - id: "openrouter"
+    name: "OpenRouter"
+    type: "openrouter"
+    api_key: "${OPENROUTER_API_KEY}"
+    base_url: "https://openrouter.ai/api/v1"
+    models:
+      - name: "openrouter/anthropic/claude-3.5-sonnet"
+        display_name: "Claude 3.5 Sonnet"
+        context_window: 200000
+        max_output_tokens: 8192
+        supports_tools: true
+      - name: "openrouter/nvidia/nemotron-3-5-lightning"
+        display_name: "Nvidia Nemotron 3.5 Lightning"
+        context_window: 131072
+        max_output_tokens: 4096
+        supports_tools: true
+      - name: "openrouter/deepseek/deepseek-chat"
+        display_name: "DeepSeek V3"
+        context_window: 65536
+        max_output_tokens: 4096
+        supports_tools: true
+
+  # ----------------------------------------------------------------------------
+  # 3. Anthropic Direct
+  # ----------------------------------------------------------------------------
+  - id: "anthropic"
+    name: "Anthropic"
+    type: "anthropic"
+    api_key: "${ANTHROPIC_API_KEY}"
+    models:
+      - name: "claude-3-5-sonnet-20241022"
+        display_name: "Claude 3.5 Sonnet"
+        context_window: 200000
+        max_output_tokens: 8192
+        supports_tools: true
+
+  # ----------------------------------------------------------------------------
+  # 4. OpenAI Direct
+  # ----------------------------------------------------------------------------
+  - id: "openai"
+    name: "OpenAI"
+    type: "openai"
+    api_key: "${OPENAI_API_KEY}"
+    models:
+      - name: "gpt-4o"
+        display_name: "GPT-4o"
+        context_window: 128000
+        max_output_tokens: 4096
+        supports_tools: true
+      - name: "gpt-4o-mini"
+        display_name: "GPT-4o Mini"
+        context_window: 128000
+        max_output_tokens: 4096
+        supports_tools: true
+
+  # ----------------------------------------------------------------------------
+  # 5. Local Offline Models (Ollama) - Zero API Key Needed
+  # ----------------------------------------------------------------------------
+  - id: "ollama"
+    name: "Local Ollama"
+    type: "openai_compatible"
+    base_url: "http://localhost:11434/v1"
+    api_key: "ollama"
+    models:
+      - name: "qwen2.5-coder:7b"
+        display_name: "Qwen 2.5 Coder 7B"
+        context_window: 32768
+        max_output_tokens: 4096
+        supports_tools: true

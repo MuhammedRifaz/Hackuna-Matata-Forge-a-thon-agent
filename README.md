@@ -1,235 +1,249 @@
 <p align="center">
-  <img src="assets/icons/icon.png" width="80" alt="Cline" />
+  <img src="assets/branding/pacior-logo.svg" width="120" height="120" alt="Pacior Code Logo" />
 </p>
 
-<h1 align="center">Cline</h1>
+<h1 align="center">Pacior Code — Autonomous TrueForge Agent</h1>
 
 <p align="center">
-The open source coding agent in your IDE, terminal, & desktop!
+  <strong>Autonomous AI Coding Agent built on TrueFoundry's TrueForge Harness & Cline IDE Architecture</strong><br>
+  <em>IIT Bombay Forge-a-thon 2026 Submission</em>
 </p>
 
-<div align="center">
-
-<div align="center">
-<table>
-<tbody>
-<td align="center">
-<a href="https://docs.cline.bot" target="_blank"><strong>Docs</strong></a>
-</td>
-<td align="center">
-<a href="https://discord.gg/cline" target="_blank"><strong>Discord</strong></a>
-</td>
-<td align="center">
-<a href="https://www.reddit.com/r/cline/" target="_blank"><strong>r/cline</strong></a>
-</td>
-<td align="center">
-<a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
-</td>
-<td align="center">
-<a href="https://cline.bot/join-us" target="_blank"><strong>Join us!</strong></a>
-</td>
-</tbody>
-</table>
-</div>
-
-</div>
-
-<br>
-
-<div align="center">
-<table>
-<tr>
-<td align="center" width="50%">
-
-### CLI
-
-Run Cline in your terminal.
-Interactive chat or fully headless 
-for CI/CD and scripting.
-
-```
-npm i -g cline
-```
-
-<a href="./apps/cli/README.md">Learn more</a>
-<br><br>
-
-</td>
-<td align="center" width="50%">
-
-### Desktop App
-
-Cline as a native app for macOS and Windows.
-Run agent sessions in any folder, schedule
-routines, and manage models, plugins, and MCP servers.
-
-<a href="https://cline.bot/desktop">Download for macOS and Windows</a>
-<br><br>
-
-</td>
-</tr>
-<tr>
-<td align="center" width="50%">
-
-### VS Code Extension
-
-AI coding assistant in your editor.
-Create files, run commands, browse the web,
-and use tools with human-in-the-loop approval.
-
-<a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev">Install from VS Marketplace</a>
-<br><br>
-
-</td>
-<td align="center" width="50%">
-
-### JetBrains Plugin
-
-The same Cline experience in IntelliJ IDEA,
-PyCharm, WebStorm, GoLand, and the rest of
-the JetBrains family.
-
-<a href="https://plugins.jetbrains.com/plugin/28247-cline">Install from JetBrains Marketplace</a>
-<br><br>
-
-</td>
-</tr>
-</table>
-</div>
-
-<div align="center">
-<table>
-<tr>
-<td align="center">
-
-### SDK
-
-Build your own AI agents and integrations powered by the same engine that runs the CLI, desktop app, VS Code extension, and JetBrains plugin. Custom tools, multi-agent teams, connectors, scheduled automations, and more.
-
-```
-npm install @cline/sdk
-```
-
-<a href="https://docs.cline.bot/cline-sdk/overview">Documentation</a>
-<br><br>
-
-</td>
-</tr>
-</table>
-</div>
+<p align="center">
+  <a href="#-declared-fork-point"><strong>Fork Point</strong></a> •
+  <a href="#-quick-start-from-a-clean-clone"><strong>Quick Start</strong></a> •
+  <a href="#-architecture-on-trueforge"><strong>Architecture</strong></a> •
+  <a href="#-model-configuration--zero-secrets-policy"><strong>Model Setup</strong></a> •
+  <a href="#-evaluation-scorecard"><strong>Scorecard</strong></a> •
+  <a href="#-team"><strong>Team</strong></a>
+</p>
 
 ---
 
-## Index
+## 📌 Executive Overview
 
-| Product | Description | Location | CHANGELOG |
-|---------|------------|--------------|--------------|
-| **SDK** | Node.js programmatic agent API and extension exports. | [`sdk/`](https://github.com/cline/cline/tree/main/sdk) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/sdk/CHANGELOG.md) |
-| **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`apps/cli/`](https://github.com/cline/cline/tree/main/apps/cli) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/apps/cli/CHANGELOG.md) |
-| **VS Code Extension** | The Marketplace extension and extension host integration. | [`apps/vscode/`](https://github.com/cline/cline/tree/main/apps/vscode) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/CHANGELOG.md) |
-| **Desktop App** | Native macOS and Windows app (Tauri shell, Bun sidecar, Next.js UI). | [`apps/examples/desktop-app/`](https://github.com/cline/cline/tree/main/apps/examples/desktop-app) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/CHANGELOG.md) |
-| **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins | - |
-| **Docs site** | Public documentation pages. | [`docs/`](https://docs.cline.bot/) | - |
+**Pacior Code** is an autonomous software engineering agent that integrates the **TrueForge Agent Runtime (`v0.185.1`)** with a rich VS Code extension IDE host. It completely decouples prompt reasoning, turn streaming, tool approvals, and context compaction to TrueForge, while exposing full editor capabilities through a streamable Model Context Protocol (MCP) server.
 
-## Edits Code Across Your Project
+### Key Capabilities:
+- 🧠 **TrueForge Native Agent Loop**: All model streaming, SSE events, and session turns run on TrueForge (`http://localhost:8790`).
+- 🛠️ **Full Editor MCP Server**: Exposes `read_files`, `editor`, `write_to_file`, `run_commands`, `list_files`, and `search_files` as standard MCP tools.
+- 🎯 **PACIOR Context Engine (Criterion B1)**: AST structural dependency graph slicing and IDF lexical ranking assembling compact context under strict token budgets.
+- 🗜️ **Automatic Context Compaction (Criterion B2)**: Calibrated at 18,000 tokens to keep prompt size lean and prevent token explosion (~200k–300k total tokens per task).
+- 🛡️ **Dynamic Resilient Model Shifting (Criterion B3 & Task C)**: Automatically detects 429 rate limits or provider failures, shifts to the next available model, preserves all workspace edits, and resumes without restarting from step 0.
+- 🔍 **Antigravity-Style Post-Task Diff Review (Criterion B4)**: Non-blocking autonomous execution with post-task in-editor hunk CodeLenses (`✓Accept | ✕Reject`) and a chat footer review summary.
 
-Cline reads your project structure, understands the relationships between files, and makes coordinated changes across your codebase. It monitors linter and compiler errors as it works, fixing issues like missing imports, type mismatches, and syntax errors before you even see them. In VS Code and JetBrains, every edit shows up as a diff you can review, modify, or revert. All changes are tracked with checkpoints, so you can easily undo the agent's work.
+---
 
-## Runs Bash Commands
+## 🍴 Declared Fork Point
 
-Cline executes commands directly in your terminal and watches the output in real time. Install packages, run build scripts, execute tests, deploy applications, manage databases. For long-running processes like dev servers, Cline continues working in the background and reacts to new output as it appears, catching compile errors, test failures, and server crashes as they happen.
+Per hackathon submission rules, Pacior Code was developed as an integration on top of the open-source **Cline** monorepo:
 
-## Plan and Act
+* **Upstream Repository:** [`https://github.com/cline/cline`](https://github.com/cline/cline)
+* **Base Upstream Commit:** `5413dc180c10700ce2e26547ab75991360dd0486`  
+  *Message:* `docs(cli): point development setup to the pinned Bun version (#15544)`
+* **Active Working Branch:** `feat/trueforge-integration`
+* **Upstream License:** Apache 2.0 (strictly preserved in [`LICENSE`](./LICENSE))
+* **Zero Secrets Committed:** No API keys, credentials, or secrets exist in the repository (audited with `gitleaks` & regex scans; all keys are user-supplied via environment variables or TrueForge UI).
 
-Toggle between Plan mode and Act mode. In Plan mode, Cline explores your codebase, asks clarifying questions, and lays out a strategy. Once you're aligned, switch to Act mode and Cline executes the plan. Every file edit and terminal command requires your approval, so you stay in control of what actually changes. Or toggle auto-approve and let Cline run autonomously.
+---
 
-## Rules and Skills
+## 🚀 Quick Start from a Clean Clone
 
-Define project-specific rules in `.clinerules` files that guide how Cline works in your codebase: coding standards, architecture conventions, deployment procedures, testing requirements. Rules are picked up automatically by the CLI, VS Code extension, and JetBrains plugin. Use skills to let the model load specific rules when needed.
+You can evaluate Pacior Code on any clean machine (Windows, macOS, Linux) in minutes.
 
-## Works With Every Model
+### Prerequisites:
+- **Node.js**: `≥ 22.0.0` ([nodejs.org](https://nodejs.org))
+- **Bun**: `≥ 1.2.0` ([bun.sh](https://bun.sh))
+- **Python**: `≥ 3.10` (for pytest verification and AST analysis)
+- **VS Code**: Installed on system path (`code` command available)
 
-Cline is not locked to a single AI provider. Use whichever model fits your workflow:
+---
 
-| Provider | Models |
-|----------|--------|
-| Anthropic | Claude Opus, Sonnet, Haiku |
-| OpenAI | GPT series models |
-| Google | Gemini series models |
-| OpenRouter | 200+ models from any provider |
-| Vercel AI Gateway | Route to many providers through one gateway |
-| AWS Bedrock | Claude, Llama, and more |
-| Azure / GCP Vertex | All hosted models |
-| Cerebras / Groq | Fast inference models |
-| Ollama / LM Studio | Run local models on your machine |
-| Any OpenAI-compatible API | Self-hosted or third-party endpoints |
+### Option A: One-Command Turnkey Launcher (Recommended)
 
-## Extend With Plugins or MCP Servers
+Clone the repository and run the automated evaluator launcher:
 
-Extend Cline's capabilities with plugins. Using the SDK, register tools and lifecycle hooks programmatically through the plugin system for logging, auditing, policy enforcement, or adding domain-specific capabilities. Simple plugin example below.
-
-```typescript
-import { Agent, createTool } from "@cline/sdk"
-
-const deployTool = createTool({
-  name: "deploy",
-  description: "Deploy the current branch to staging.",
-  inputSchema: { type: "object", properties: { env: { type: "string" } }, required: ["env"] },
-  execute: async (input) => {
-    // your deployment logic
-  },
-})
-
-const agent = new Agent({ tools: [deployTool], /* ... */ })
+#### On Windows (PowerShell):
+```powershell
+git clone https://github.com/MuhammedRifaz/IIT-Bombay-Forge-a-thon.git TrueForge
+cd TrueForge
+.\start.ps1
 ```
-...or use [MCPs](https://github.com/modelcontextprotocol) to connect to databases, query APIs, manage cloud infrastructure, and interact with external systems. Use [community-built servers](https://github.com/modelcontextprotocol/servers) or ask Cline to create custom tools on the fly. In the CLI, manage servers with `cline mcp`.
 
-## Multi-Agent Teams
+#### On Windows (Command Prompt):
+```cmd
+setup.bat
+```
 
-Coordinate multiple agents working together on complex tasks. A coordinator agent breaks the work into subtasks and delegates to specialist agents, each with their own tools and context. Team state persists across sessions so you can pick up where you left off.
-
+#### On Linux / macOS:
 ```bash
-cline --team-name auth-sprint "Plan and implement user authentication with tests"
+git clone https://github.com/MuhammedRifaz/IIT-Bombay-Forge-a-thon.git TrueForge
+cd TrueForge
+chmod +x start.sh
+./start.sh
 ```
 
-## Scheduled Agents
+**What the turnkey script does automatically:**
+1. Checks and verifies Node.js, Bun, and Python.
+2. Installs monorepo dependencies (`bun install`).
+3. Compiles SDK packages and builds the extension + webview bundles.
+4. Checks if TrueForge is running; if not, automatically launches `npx @truefoundry/trueforge` in the background.
+5. Launches VS Code with the extension loaded into the evaluation workspace.
 
-Run agents on cron schedules for recurring automations. Daily PR summaries, weekly dependency checks, codebase health reports. Schedules persist across restarts and run independently of any terminal session.
+---
 
+### Option B: Step-by-Step Manual Setup
+
+If you prefer running each step manually:
+
+#### 1. Install Dependencies & Build Packages
 ```bash
-cline schedule create "PR summary" \
-  --cron "0 9 * * MON-FRI" \
-  --prompt "List all open PRs and their review status" \
-  --workspace /path/to/repo
+# From repository root
+bun install
+bun run build:sdk
 ```
 
-## Connect to Slack, Telegram, Discord, and More
-
-Chat with your agent from any messaging platform: Telegram, Slack, Discord, Google Chat, WhatsApp, and Linear. Each conversation thread maps to an agent session with full context. Set up access control to restrict who can interact with your agent.
-
+#### 2. Build the VS Code Extension & Webview
 ```bash
-# Connect to Telegram
-cline connect telegram -k $BOT_TOKEN
-# Connect to Slack through webhook
-cline connect slack --bot-token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
-# Connect to Slack using socket mode
-cline connect slack --bot-token $SLACK_TOKEN --app-token $SLACK_APP_TOKEN
+# Build Vite React Webview
+bun --cwd apps/vscode build:webview
+
+# Bundle the extension with esbuild
+bun --cwd apps/vscode esbuild.mjs --production
 ```
 
-## Headless CLI for CI/CD
-
-Run Cline with zero interaction for scripting and automation. Pipe input, get JSON output, chain commands, integrate into CI/CD pipelines.
-
+#### 3. Start TrueForge Agent Harness
+TrueForge runs locally as an independent daemon on port `8790`:
 ```bash
-cline "Run tests and fix any failures"
-git diff origin/main | cline "Review these changes for issues"
-cline --json "List all TODO comments" | jq -r 'select(.type == "agent_event" and .event.text) | .event.text'
+npx @truefoundry/trueforge
+```
+TrueForge web dashboard will open at **`http://localhost:8790`**.
+
+#### 4. Configure Your LLM Provider in TrueForge
+Open `http://localhost:8790` in your browser:
+- Navigate to **Settings** $\to$ **Models** / **Providers**.
+- Add your preferred provider (Google Gemini, OpenRouter, OpenAI, Anthropic, or local Ollama).
+- Enter your API key. (See [`models.config.example.yaml`](./models.config.example.yaml) and [`.env.example`](./.env.example)).
+
+#### 5. Launch VS Code with Pacior Code
+```bash
+code --extensionDevelopmentPath="apps/vscode" "path/to/your/workspace"
+```
+Click the **Pacior Code** icon in the VS Code Activity Bar (left sidebar) to open the chat panel.
+
+---
+
+## 🏛️ Architecture on TrueForge
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        VS Code IDE Host                                │
+│                                                                        │
+│   ┌───────────────────────┐             ┌───────────────────────────┐  │
+│   │   Pacior Chat UI      │             │  PostTaskDiffReviewBar    │  │
+│   │  (React 18 / Vite)    │             │  & In-Editor CodeLenses   │  │
+│   └───────────┬───────────┘             └─────────────▲─────────────┘  │
+│               │                                       │                │
+│   ┌───────────▼───────────────────────────────────────┴─────────────┐  │
+│   │                 TrueForgeSessionHost.ts                         │  │
+│   │    - Maps SdkSessionHost to TrueForge SSE Stream                │  │
+│   │    - Resilient Model Failover & Auto-Compaction                 │  │
+│   └───────────┬───────────────────────────────────────▲─────────────┘  │
+│               │ HTTP / SSE                            │                │
+│               │ (Port 8790)                           │                │
+└───────────────┼───────────────────────────────────────┼────────────────┘
+                │                                       │
+┌───────────────▼───────────────────────────────────────┼────────────────┐
+│               TrueForge Agent Harness Runtime         │                │
+│                                                       │                │
+│   ┌──────────────────────────────────────────────┐    │                │
+│   │  Agent Execution Loop (agent.pacior.yaml)    │    │                │
+│   │  - Iteration Limit: 80                       │    │                │
+│   │  - Auto-Compaction: 18,000 tokens            │    │                │
+│   │  - Dynamic Fallback Routing                  │    │                │
+│   └──────────────────────┬───────────────────────┘    │                │
+│                          │ Tool Call (Streamable HTTP)│                │
+└──────────────────────────┼────────────────────────────┼────────────────┘
+                           │                            │
+┌──────────────────────────▼────────────────────────────┴────────────────┐
+│                     WorkspaceMcpServer.ts                              │
+│   Hosted locally inside the extension process over 127.0.0.1:           │
+│   - read_files      (Reads slices with rate-pacing)                    │
+│   - editor          (Applies atomic surgical search-and-replace)       │
+│   - write_to_file   (Full file rewrite with pre-edit snapshot)         │
+│   - run_commands    (Executes targeted test commands e.g. pytest)      │
+│   - list_files      (Repository directory discovery)                   │
+│   - search_files    (Regex search across project)                      │
+│   - assemble_context(PACIOR AST structural & IDF ranking)              │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Contributing
+### What Replaced What from Upstream Cline:
+| Upstream Cline Component | Replaced By / Integrated With | Role & Reason |
+| :--- | :--- | :--- |
+| `Cline.ts` native monolithic loop | `TrueForgeSessionHost.ts` | Delegates turn management, SSE streaming, and compaction to TrueForge. |
+| In-process filesystem & shell tools | `WorkspaceMcpServer.ts` | Exposes editor operations as standard streamable MCP tools. |
+| Modal per-edit diff approvals | `PaciorDiffReviewManager.ts` & `PostTaskDiffReviewBar.tsx` | Uninterrupted autonomous task execution; comprehensive post-task hunk review. |
+| Naive grep/file context | `PaciorContextEngine.ts` & `pacior_ast_analyzer.py` | AST structural dependency graph slicing and explainable context assembly. |
 
-Start with the [Contributing Guide](CONTRIBUTING.md). Join our [Discord](https://discord.gg/cline) and head to the `#contributors` channel to connect with other contributors. Check our [careers page](https://cline.bot/join-us) for full-time roles.
+---
 
-## License
+## ⚙️ Model Configuration & Zero Secrets Policy
 
-[Apache 2.0 © 2026 Cline Bot Inc.](./LICENSE)
+### Zero Secrets Guarantee:
+This repository contains **NO API keys, passwords, or personal credentials**.
+All model access is routed through TrueForge via user-supplied credentials.
+
+### How to Configure Models:
+1. **Via TrueForge Web UI (Easiest)**:
+   - Start TrueForge (`npx @truefoundry/trueforge`).
+   - Open `http://localhost:8790` and configure your API key under **Settings** $\to$ **Models**.
+2. **Via Environment Variables**:
+   - Copy `.env.example` to `.env`:
+     ```bash
+     cp .env.example .env
+     ```
+   - Set your keys:
+     ```env
+     GEMINI_API_KEY=your_key_here
+     OPENROUTER_API_KEY=your_key_here
+     OPENAI_API_KEY=your_key_here
+     ```
+3. **Example YAML Reference**:
+   - See [`models.config.example.yaml`](./models.config.example.yaml) for full schema and model specifications.
+
+### How Model Failover Works:
+If the active model encounters a `429 Rate Limit`, quota exhaustion, or stream failure:
+1. TrueForge catches the error in `TrueForgeSessionHost.ts`.
+2. A single **⚠️ Model Shift** alert is surfaced in the UI.
+3. The session commits all workspace edits so far.
+4. A 5-second rate-cooldown window elapses.
+5. The session automatically shifts to the next available configured model (e.g. Gemini $\to$ OpenRouter $\to$ OpenAI) with a targeted continuation prompt—**without restarting the task from step 0**.
+
+---
+
+## 📊 Evaluation Scorecard
+
+| Criterion | Requirement | Implementation & Claim |
+| :--- | :--- | :--- |
+| **Task A (Agent Loop on TrueForge)** | All model turns run through TrueForge with human-in-the-loop approvals. | `TrueForgeSessionHost.ts` executes every prompt turn on TrueForge (`http://localhost:8790`). `tool.approval_required` pauses execution for human approval when auto-approval is toggled OFF. |
+| **Task B1 (Context Engine)** | Smart context selection with explainability within strict budget. | `PaciorContextEngine.ts` uses AST parsing and IDF ranking to assemble relevant slices within a 900-token budget. Displays an AST card in chat showing which files were selected and why. |
+| **Task B2 (Context Compaction)** | Automatic context compaction to keep prompt size lean. | Configured via `contextManagement.compaction` in `agent.pacior.yaml` triggered at 18,000 tokens. Emits a blue compaction card and restricts task token usage to ~200k–300k. |
+| **Task B3 (Resilient Failover)** | Resilient error recovery and dynamic model switching. | `shiftToNextAvailableModel()` seamlessly shifts across configured models upon 429 or provider errors without restarting from scratch or duplicating UI cards. |
+| **Task B4 (Diff Review)** | Review changes after task completion. | `PaciorDiffReviewManager.ts` provides post-task in-editor hunk CodeLenses (`✓Accept \| ✕Reject`) and a chat footer review summary with per-row and accept-all controls. |
+| **Task C (Fault Tolerance)** | Seamless execution across network/rate hiccups. | Paced MCP tool executions (1,200ms delay) eliminate rapid RPM spikes; continuation protocol guarantees zero loss of completed edits. |
+
+---
+
+## 👥 Team
+
+| Member | College / Organization | GitHub Handle | Role |
+| :--- | :--- | :--- | :--- |
+| **Muhammed Rifaz** | Yenepoya Institute of Technology | [`@MuhammedRifaz`](https://github.com/MuhammedRifaz) | Lead System Architect, TrueForge Session Host Bridge, MCP Workspace Server, Post-Task Diff Review Manager |
+| **Team Pacior** | IIT Bombay Forge-a-thon | Repository Contributor | PACIOR Context Engine, AST Structural Parser, Evaluation Validation & Packaging |
+
+---
+
+## 📄 License
+
+This project is licensed under the **Apache License 2.0** — see the [`LICENSE`](./LICENSE) file for details. Preserved from upstream Cline per open-source requirements.
