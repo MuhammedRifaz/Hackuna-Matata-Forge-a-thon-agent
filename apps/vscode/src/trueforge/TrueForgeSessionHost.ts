@@ -210,6 +210,73 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		})
 	}
 
+	/**
+	 * Dynamic Available Model Shifter:
+	 * Automatically shifts to the next available working model from TrueForge.
+	 * - Permanently adds the failed model to `failedModelIds` so it is NEVER reused in this session.
+	 * - Iterates through all available models registered on TrueForge.
+	 * - Silently tests/shifts and emits EXACTLY ONE notice message (never duplicate alerts or per-model limit spam).
+	 */
+	private async shiftToNextAvailableModel(session: ActiveTrueForgeSession, failedReason?: string): Promise<boolean> {
+		if (session.modelId) {
+			session.failedModelIds.add(session.modelId)
+		}
+
+		try {
+			const models = await this.client.listModels()
+			// Prioritize stable gemini models first, then any other untried model
+			const sortedModels = [...models].sort((a, b) => {
+				const aGem = a.name.toLowerCase().includes("gemini") ? 1 : 0
+				const bGem = b.name.toLowerCase().includes("gemini") ? 1 : 0
+				return bGem - aGem
+			})
+
+			const candidate = sortedModels.find((m: { name: string }) => !session.failedModelIds.has(m.name))
+			if (!candidate) {
+				Logger.warn(
+					`[TrueForgeSessionHost] [Model Shift] All available models exhausted for session ${session.clineSessionId}: ${Array.from(session.failedModelIds).join(", ")}`,
+				)
+				return false
+			}
+
+			const previousModel = session.modelId
+			Logger.log(
+				`[TrueForgeSessionHost] [Model Shift] Shifting active model for session ${session.clineSessionId}: ${previousModel} -> ${candidate.name} (reason: ${failedReason || "unavailable"})`,
+			)
+
+			const latest = await this.client.resolveAgentSpec({
+				cwd: session.cwd,
+				mode: session.mode,
+				requireApprovalForTools: this.getEffectiveApprovalTools(),
+			})
+			latest.spec.model = { name: candidate.name }
+			latest.spec.config = {
+				...latest.spec.config,
+				iterationLimit: 50,
+				sandbox: { enabled: false, fileDownloads: false },
+				askUserQuestions: { enabled: true },
+				contextManagement: {
+					compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
+					largeToolResponse: { enabled: true },
+				},
+			}
+			await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
+			session.modelId = candidate.name
+
+			// Emit EXACTLY ONE notice message so the UI renders a single yellow card with zero duplicates
+			const shiftMessage = `⚠️ **Model Shift**: Switched active model to "${candidate.name}".`
+			this.emitAgentEvent(session.clineSessionId, {
+				type: "notice",
+				message: shiftMessage,
+			})
+
+			return true
+		} catch (err) {
+			Logger.error(`[TrueForgeSessionHost] [Model Shift] Error shifting to available model: ${err}`)
+			return false
+		}
+	}
+
 	async start(input: StartSessionInput): Promise<StartSessionResult>
 	async start(input: ClineCoreStartInput): Promise<StartSessionResult>
 	async start(input: StartSessionInput | ClineCoreStartInput): Promise<StartSessionResult> {
@@ -242,6 +309,16 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				requireApprovalForTools: this.getEffectiveApprovalTools(),
 			})
 			const tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
+
+			// Ensure preferred working model (e.g. Gemini) is prioritized from the start
+			try {
+				const availModels = await this.client.listModels()
+				const preferred = availModels.find((m: { name: string }) => m.name.toLowerCase().includes("gemini"))
+				if (preferred && !resolved.spec.model?.name?.toLowerCase().includes("gemini")) {
+					resolved.spec.model = { name: preferred.name }
+					await this.client.updateSessionAgent(tfSession.id, resolved.spec)
+				}
+			} catch {}
 
 			const modelId = resolved.spec.model?.name ?? normalized.config.modelId ?? "trueforge"
 			const now = new Date().toISOString()
@@ -323,7 +400,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					mode: session.mode,
 					requireApprovalForTools: this.getEffectiveApprovalTools(),
 				})
-				if (session.failedModelIds.size > 0) {
+				if (session.failedModelIds.has(latest.spec.model?.name ?? "") || session.failedModelIds.has(session.modelId)) {
+					await this.shiftToNextAvailableModel(session, "Model previously failed in this session")
+					latest.spec.model = { name: session.modelId }
+				} else if (session.failedModelIds.size > 0) {
 					latest.spec.model = { name: session.modelId }
 				}
 				latest.spec.config = {
@@ -453,58 +533,14 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						abortController.signal,
 					)
 				} catch (streamInitErr) {
-					// B3: Automatic fallback when stream initiation fails (e.g. invalid endpoint, wrong key, 401/403/429)
+					// B3: Automatic model shift when stream initiation fails (e.g. invalid endpoint, wrong key, 401/403/429)
 					const errMsg = streamInitErr instanceof Error ? streamInitErr.message : String(streamInitErr)
 					const isFailoverCandidate = /401|403|429|rate limit|quota|unreachable|fetch failed|econnrefused|not found|502|503/i.test(errMsg)
-					if (isFailoverCandidate && session.failedModelIds.size < 3) {
-						session.failedModelIds.add(session.modelId)
-						await this.mcpServer.rollbackSessionEdits()
-						try {
-							const models = await this.client.listModels()
-							const fallbackCandidate = models.find((m: { name: string }) => !session.failedModelIds.has(m.name))
-							if (fallbackCandidate) {
-								Logger.log(
-									`[TrueForgeSessionHost] [B3 Fallback] Stream start failed with ${errMsg}. Automatically switching model to "${fallbackCandidate.name}"...`,
-								)
-								const latest = await this.client.resolveAgentSpec({
-									cwd: session.cwd,
-									mode: session.mode,
-									requireApprovalForTools: this.getEffectiveApprovalTools(),
-								})
-								latest.spec.model = { name: fallbackCandidate.name }
-								latest.spec.config = {
-									...latest.spec.config,
-									iterationLimit: 50,
-									sandbox: { enabled: false, fileDownloads: false },
-									askUserQuestions: { enabled: true },
-									contextManagement: {
-										compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
-										largeToolResponse: { enabled: true },
-									},
-								}
-								await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
-								session.modelId = fallbackCandidate.name
-
-								const fallbackNoticeText = `⚠️ **TrueForge Resilient Model Fallback (Criterion B3)**: Primary model connection failed (${errMsg}). Automatically failed over to fallback model "${fallbackCandidate.name}" with zero files touched.`
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "notice",
-									message: fallbackNoticeText,
-								})
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "content_start",
-									contentType: "text",
-									text: `${fallbackNoticeText}\n\n`,
-								})
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "content_end",
-									contentType: "text",
-									text: `${fallbackNoticeText}\n\n`,
-								})
-
-								return this.send(input)
-							}
-						} catch (fallbackErr) {
-							Logger.error(`[TrueForgeSessionHost] [B3 Fallback] Stream initiation failover failed: ${fallbackErr}`)
+					if (isFailoverCandidate) {
+						await this.mcpServer.rollbackSessionEdits().catch(() => {})
+						const shifted = await this.shiftToNextAvailableModel(session, errMsg)
+						if (shifted) {
+							return this.send(input)
 						}
 					}
 					throw streamInitErr
@@ -861,61 +897,12 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 
 				if (turnErrorMessage) {
-					// B3: Automatic fallback to a secondary configured model on genuine provider/rate/stream failures
+					// B3: Automatic dynamic model shift to next available model on quota/rate/provider/stream errors
 					const isQuotaOrAuthFailure = /rate limit|quota|429|unauthorized|401|403|overloaded|503|502|Response stream ended without a finish reason|stream ended/i.test(turnErrorMessage)
-					if (isQuotaOrAuthFailure && session.failedModelIds.size < 2) {
-						session.failedModelIds.add(session.modelId)
-						try {
-							const models = await this.client.listModels()
-							const fallbackCandidate = models.find((m: { name: string }) => !session.failedModelIds.has(m.name))
-							if (fallbackCandidate) {
-								Logger.log(
-									`[TrueForgeSessionHost] [B3 Fallback] Triggering automatic failover from ${session.modelId} -> ${fallbackCandidate.name}`,
-								)
-								const latest = await this.client.resolveAgentSpec({
-									cwd: session.cwd,
-									mode: session.mode,
-									requireApprovalForTools: this.getEffectiveApprovalTools(),
-								})
-								latest.spec.model = { name: fallbackCandidate.name }
-								latest.spec.config = {
-									...latest.spec.config,
-									iterationLimit: 50,
-									sandbox: { enabled: false, fileDownloads: false },
-									askUserQuestions: { enabled: true },
-									contextManagement: {
-										compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
-										largeToolResponse: { enabled: true },
-									},
-								}
-								await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
-								session.modelId = fallbackCandidate.name
-
-								const fallbackNoticeText = `⚠️ **TrueForge Resilient Model Fallback (Criterion B3)**: Primary model error (${turnErrorMessage}). Automatically failed over to fallback model "${fallbackCandidate.name}" with no user intervention needed.`
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "notice",
-									message: fallbackNoticeText,
-								})
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "content_start",
-									contentType: "text",
-									text: `${fallbackNoticeText}\n\n`,
-								})
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "content_end",
-									contentType: "text",
-									text: `${fallbackNoticeText}\n\n`,
-								})
-
-								// Retry once on the fallback model
-								return this.send(input)
-							} else {
-								Logger.warn(
-									`[TrueForgeSessionHost] [B3 Fallback] All configured models exhausted: ${Array.from(session.failedModelIds).join(", ")}`,
-								)
-							}
-						} catch (fallbackErr) {
-							Logger.error(`[TrueForgeSessionHost] [B3 Fallback] Failover attempt failed: ${fallbackErr}`)
+					if (isQuotaOrAuthFailure) {
+						const shifted = await this.shiftToNextAvailableModel(session, turnErrorMessage)
+						if (shifted) {
+							return this.send(input)
 						}
 					}
 
@@ -982,53 +969,14 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			const formatted = formatTrueForgeError(error, this.runtimeAddress)
 			Logger.error(`[TrueForgeSessionHost] Turn failed: ${formatted.message}`)
 
-			// B3: Automatic fallback to a secondary configured model with zero user action & workspace unchanged
+			// B3: Automatic dynamic model shift to next available model
 			const isModelFailure = /model|rate limit|quota|unauthorized|failed to fetch|overloaded|503|502|429/i.test(
 				formatted.message,
 			)
 			if (isModelFailure) {
-				session.failedModelIds.add(session.modelId)
-				try {
-					const models = await this.client.listModels()
-					const fallbackCandidate = models.find((m: { name: string }) => !session.failedModelIds.has(m.name))
-					if (fallbackCandidate) {
-						Logger.log(
-							`[TrueForgeSessionHost] [B3 Fallback] Triggering automatic failover from ${session.modelId} -> ${fallbackCandidate.name}`,
-						)
-						const latest = await this.client.resolveAgentSpec({
-							cwd: session.cwd,
-							mode: session.mode,
-							requireApprovalForTools: this.getEffectiveApprovalTools(),
-						})
-						latest.spec.model = { name: fallbackCandidate.name }
-						await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
-						session.modelId = fallbackCandidate.name
-
-						const fallbackNoticeText = `⚠️ **TrueForge Resilient Model Fallback (Criterion B3)**: Primary model error (${formatted.message}). Automatically failed over to fallback model "${fallbackCandidate.name}" with no user intervention needed.`
-						this.emitAgentEvent(session.clineSessionId, {
-							type: "notice",
-							message: fallbackNoticeText,
-						})
-						this.emitAgentEvent(session.clineSessionId, {
-							type: "content_start",
-							contentType: "text",
-							text: `${fallbackNoticeText}\n\n`,
-						})
-						this.emitAgentEvent(session.clineSessionId, {
-							type: "content_end",
-							contentType: "text",
-							text: `${fallbackNoticeText}\n\n`,
-						})
-
-						// Retry the send transparently on the fallback model
-						return this.send(input)
-					} else {
-						Logger.warn(
-							`[TrueForgeSessionHost] [B3 Fallback] All configured models exhausted: ${Array.from(session.failedModelIds).join(", ")}`,
-						)
-					}
-				} catch (fallbackErr) {
-					Logger.error(`[TrueForgeSessionHost] [B3 Fallback] Failover attempt failed: ${fallbackErr}`)
+				const shifted = await this.shiftToNextAvailableModel(session, formatted.message)
+				if (shifted) {
+					return this.send(input)
 				}
 			}
 

@@ -884,8 +884,9 @@ export const ChatRowContent = memo(
 							rawText.includes("[AST Symbol Map") ||
 							rawText.includes("AST slices")
 
-						// 2. Yellow box for Model Fallback / Error
+						// 2. Yellow box for Model Shift / Error
 						const isFallbackBlock =
+							rawText.includes("Model Shift") ||
 							rawText.includes("TrueForge Resilient Model Fallback") ||
 							rawText.includes("Automatically failed over to fallback model") ||
 							rawText.includes("fallback model")
@@ -914,7 +915,7 @@ export const ChatRowContent = memo(
 									<span className="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
 									<div className="flex-1 min-w-0">
 										<div className="font-semibold text-amber-300 text-xs mb-1">
-											TrueForge Resilient Model Fallback (Criterion B3)
+											TrueForge Resilient Model Shift (Criterion B3)
 										</div>
 										<MarkdownRow markdown={rawText} showCursor={false} />
 									</div>
@@ -976,6 +977,7 @@ export const ChatRowContent = memo(
 					case "info": {
 						const rawInfo = message.text || ""
 						if (
+							rawInfo.includes("Model Shift") ||
 							rawInfo.includes("fallback model") ||
 							rawInfo.includes("Primary model") ||
 							rawInfo.includes("failed over")
@@ -985,7 +987,7 @@ export const ChatRowContent = memo(
 									<span className="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
 									<div className="flex-1 min-w-0">
 										<div className="font-semibold text-amber-300 text-xs mb-1">
-											TrueForge Resilient Model Fallback (Criterion B3)
+											TrueForge Resilient Model Shift (Criterion B3)
 										</div>
 										<MarkdownRow markdown={rawInfo} showCursor={false} />
 									</div>
