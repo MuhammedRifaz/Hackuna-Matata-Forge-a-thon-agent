@@ -218,9 +218,10 @@ export class TrueForgeClient {
 			"1. ZERO-DRIFT & 3-READ RULE: Turn 1 already includes `[AST Symbol Map]` (exact line ranges) and `[Context Focus Snippets]` showing the exact target files and symbols. Do NOT perform open-ended searches or read files repeatedly. You are allowed AT MOST 2 targeted reads to verify exact syntax, then you MUST IMMEDIATELY propose edits using the `editor` tool. Never postpone edits.",
 			"2. EDIT SURGICALLY VIA `editor`: Propose all edits via `editor` (`path`, exact `old_text`, `new_text`). Include 2-3 lines of surrounding context in `old_text` to guarantee exact match. Never leave placeholder tags (like `</>`), syntax errors, or duplicate code. Never edit files via shell or create temporary debug/verification scripts (e.g., `debug_*.py`, `verify_*.py`).",
 			"3. PRE-CONFIGURED RUNTIME: Project dependencies and test runners are pre-installed. Never create `.venv` or run `pip`/`uv`/`npm install`.",
-			"4. SINGLE TEST VERIFICATION & COMPLETION: Run the targeted test command ONCE via `run_commands` (e.g., `python -m pytest <file> -k <test> -q`). Never run `python -c` one-liners (they break on Windows shell quoting). Once exit 0 is confirmed and all requirements are met, you are 100% DONE: DO NOT re-read files you already edited, DO NOT run extra verification commands, and DO NOT re-run help. Conclude immediately with a concise summary.",
+			"4. SINGLE TEST VERIFICATION & IMMEDIATE FINISH: When verifying changes, run the single targeted pytest command ONCE via `run_commands` (e.g., `python -m pytest <file> -k <test> -q`). Never run `python -c` one-liners (they break on Windows shell quoting). The moment exit 0 is confirmed, you are 100% DONE: NEVER run the test a second time, NEVER re-run help or redundant verification commands, and NEVER re-read files you already edited. Conclude IMMEDIATELY with a concise summary.",
 			"5. AUTONOMY & SUBAGENTS: Proceed directly when the task is clear (only call `ask_user_question` if requirements are genuinely ambiguous). Delegate broad multi-file exploration to `create_sub_agent` to keep main context lean.",
 			"6. ACCURATE ERROR DIAGNOSIS: If pytest reports an error, inspect the bottom-most line of the traceback for the true root cause (e.g., SyntaxError in source code). NEVER modify test harness files (such as `conftest.py`) or remove fixtures to mask source syntax errors.",
+			"7. POST-COMPACTION DISCIPLINE: When TrueForge compacts context (`thread.context_compaction_finished`), all prior code edits remain fully active in the workspace. Never repeat discovery, never re-read files, and never call `list_tools` again. Proceed directly to verification or conclude immediately.",
 		]
 			.filter((line) => line !== undefined)
 			.join("\n")
@@ -250,14 +251,14 @@ export class TrueForgeClient {
 					context_management: {
 						compaction: {
 							enabled: true,
-							trigger: { type: "input_tokens", value: 60000 },
+							trigger: { type: "input_tokens", value: 18000 },
 						},
 						large_tool_response: { enabled: true },
 					},
 					contextManagement: {
 						compaction: {
 							enabled: true,
-							trigger: { type: "input_tokens", value: 60000 },
+							trigger: { type: "input_tokens", value: 18000 },
 						},
 						largeToolResponse: { enabled: true },
 					},

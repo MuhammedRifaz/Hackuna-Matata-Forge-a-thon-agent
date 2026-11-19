@@ -257,7 +257,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				sandbox: { enabled: false, fileDownloads: false },
 				askUserQuestions: { enabled: true },
 				contextManagement: {
-					compaction: { enabled: true, trigger: { type: "input_tokens", value: 60000 } },
+					compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
 					largeToolResponse: { enabled: true },
 				},
 			}
@@ -413,7 +413,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					sandbox: { enabled: false, fileDownloads: false },
 					askUserQuestions: { enabled: true },
 					contextManagement: {
-						compaction: { enabled: true, trigger: { type: "input_tokens", value: 60000 } },
+						compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
 						largeToolResponse: { enabled: true },
 					},
 				}
@@ -921,7 +921,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 							// Seamlessly invoke the next turn on the same session so user never has to click Retry
 							return this.send({
 								sessionId: input.sessionId,
-								prompt: "Please continue. Do not read or search anymore — immediately use the 'editor' tool to apply your code and documentation changes, then run pytest to verify and complete the task.",
+								prompt: "Please continue. Do not read or search any files. If your code and test changes are already applied, run your targeted test command once via 'run_commands' to verify and conclude immediately with your final summary. Otherwise, use 'editor' to apply remaining edits now.",
 								mode: input.mode,
 							})
 						}
