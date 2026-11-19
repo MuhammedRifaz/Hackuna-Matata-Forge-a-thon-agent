@@ -281,6 +281,10 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 					await manager.rejectAll()
 				} else if (diffAction.action === "open_file" && diffAction.path) {
 					await manager.openFile(diffAction.path)
+				} else if (diffAction.action === "accept_file" && diffAction.path) {
+					await manager.acceptFile(diffAction.path)
+				} else if (diffAction.action === "reject_file" && diffAction.path) {
+					await manager.rejectFile(diffAction.path)
 				}
 				break
 			}

@@ -72,6 +72,8 @@ export class PaciorDiffReviewManager implements vscode.CodeLensProvider {
 			),
 			vscode.commands.registerCommand("pacior.acceptAllDiffs", () => manager.acceptAll()),
 			vscode.commands.registerCommand("pacior.rejectAllDiffs", () => manager.rejectAll()),
+			vscode.commands.registerCommand("pacior.acceptFile", (absPath: string) => manager.acceptFile(absPath)),
+			vscode.commands.registerCommand("pacior.rejectFile", (absPath: string) => manager.rejectFile(absPath)),
 			vscode.commands.registerCommand("pacior.openDiffFile", (absPath: string) => manager.openFile(absPath)),
 		)
 		return manager
@@ -192,8 +194,46 @@ export class PaciorDiffReviewManager implements vscode.CodeLensProvider {
 			hunk.status = "accepted"
 			this.codeLensEmitter.fire()
 			this.updateDecorations()
+			this.broadcastReview()
 			this.checkAllResolved()
 		}
+	}
+
+	async acceptFile(absPath: string): Promise<void> {
+		const record = this.trackedFiles.get(absPath)
+		if (!record) return
+		for (const hunk of record.hunks) {
+			hunk.status = "accepted"
+		}
+		this.codeLensEmitter.fire()
+		this.updateDecorations()
+		this.broadcastReview()
+		this.checkAllResolved()
+		vscode.window.showInformationMessage(`Changes accepted for ${path.basename(absPath)}.`)
+	}
+
+	async rejectFile(absPath: string): Promise<void> {
+		const record = this.trackedFiles.get(absPath)
+		if (!record) return
+
+		try {
+			if (record.originalContent !== null) {
+				await fs.writeFile(absPath, record.originalContent, "utf8")
+			} else {
+				await fs.unlink(absPath).catch(() => {})
+			}
+		} catch (err) {
+			Logger.warn(`[PaciorDiffReviewManager] Failed to revert ${absPath}: ${err}`)
+		}
+
+		for (const hunk of record.hunks) {
+			hunk.status = "rejected"
+		}
+		this.codeLensEmitter.fire()
+		this.updateDecorations()
+		this.broadcastReview()
+		this.checkAllResolved()
+		vscode.window.showInformationMessage(`Changes rejected and reverted for ${path.basename(absPath)}.`)
 	}
 
 	async rejectHunk(absPath: string, hunkIndex: number): Promise<void> {
@@ -312,12 +352,24 @@ export class PaciorDiffReviewManager implements vscode.CodeLensProvider {
 
 			const filesPayload = Array.from(this.trackedFiles.values())
 				.filter((r) => r.hunks.some((h) => h.status === "pending"))
-				.map((r) => ({
-					path: r.relPath,
-					absPath: r.absPath,
-					additions: r.additions,
-					deletions: r.deletions,
-				}))
+				.map((r) => {
+					let pendingAdds = 0
+					let pendingDels = 0
+					for (const h of r.hunks) {
+						if (h.status === "pending") {
+							for (const line of h.lines) {
+								if (line.startsWith("+")) pendingAdds++
+								if (line.startsWith("-")) pendingDels++
+							}
+						}
+					}
+					return {
+						path: r.relPath,
+						absPath: r.absPath,
+						additions: pendingAdds,
+						deletions: pendingDels,
+					}
+				})
 
 			void webview.webview.postMessage({
 				type: "pacior_diff_review",

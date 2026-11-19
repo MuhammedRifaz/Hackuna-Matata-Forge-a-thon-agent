@@ -14,7 +14,7 @@ export interface WebviewMessage {
 		tokenBudget?: number
 	}
 	pacior_diff_action?: {
-		action: "accept_all" | "reject_all" | "open_file"
+		action: "accept_all" | "reject_all" | "open_file" | "accept_file" | "reject_file"
 		path?: string
 	}
 }

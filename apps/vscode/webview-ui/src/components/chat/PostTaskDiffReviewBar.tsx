@@ -41,6 +41,20 @@ export const PostTaskDiffReviewBar: React.FC<PostTaskDiffReviewBarProps> = ({ vi
 		})
 	}
 
+	const handleAcceptFile = (absPath: string) => {
+		PLATFORM_CONFIG.postMessage({
+			type: "pacior_diff_action",
+			pacior_diff_action: { action: "accept_file", path: absPath },
+		})
+	}
+
+	const handleRejectFile = (absPath: string) => {
+		PLATFORM_CONFIG.postMessage({
+			type: "pacior_diff_action",
+			pacior_diff_action: { action: "reject_file", path: absPath },
+		})
+	}
+
 	return (
 		<div className="border border-(--vscode-editorGroup-border) bg-(--vscode-sideBar-background) rounded-md mx-2 mb-2 p-2.5 text-xs shadow-md select-none transition-all">
 			{/* File list header row matching Image 2 */}
@@ -51,22 +65,53 @@ export const PostTaskDiffReviewBar: React.FC<PostTaskDiffReviewBarProps> = ({ vi
 						return (
 							<div
 								key={file.absPath}
-								onClick={() => handleOpenFile(file.absPath)}
-								className="pt-1.5 first:pt-0 flex items-center justify-between cursor-pointer hover:bg-(--vscode-list-hoverBackground) px-1.5 py-1 rounded group">
-								<div className="flex items-center gap-2 truncate">
+								className="pt-1.5 first:pt-0 flex items-center justify-between hover:bg-(--vscode-list-hoverBackground) px-1.5 py-1 rounded group transition-colors">
+								<div
+									onClick={() => handleOpenFile(file.absPath)}
+									className="flex items-center gap-2 truncate cursor-pointer flex-1 min-w-0"
+									title={`Click to view diff for ${file.path}`}>
 									<span className="text-orange-400 font-bold text-sm leading-none">⊙</span>
 									<span className="text-emerald-400 font-mono text-[11px] font-semibold">+{file.additions}</span>
 									<span className="text-rose-400 font-mono text-[11px] font-semibold">-{file.deletions}</span>
-									<span className="font-medium text-foreground group-hover:text-blue-400 transition-colors">
+									<span className="font-medium text-foreground group-hover:text-blue-400 transition-colors truncate">
 										{fileName}
 									</span>
-									<span className="text-muted-foreground text-[10px] truncate max-w-[180px]">
+									<span className="text-muted-foreground text-[10px] truncate max-w-[140px]">
 										{file.path}
 									</span>
 								</div>
-								<span className="text-[10px] text-muted-foreground group-hover:text-foreground">
-									View Diff
-								</span>
+								<div className="flex items-center gap-1.5 ml-2 shrink-0">
+									<button
+										type="button"
+										onClick={(e) => {
+											e.stopPropagation()
+											handleOpenFile(file.absPath)
+										}}
+										className="text-[10px] px-1.5 py-0.5 text-muted-foreground hover:text-foreground hover:bg-(--vscode-toolbar-hoverBackground) rounded transition-colors"
+										title="View diff in editor">
+										Diff
+									</button>
+									<button
+										type="button"
+										onClick={(e) => {
+											e.stopPropagation()
+											handleRejectFile(file.absPath)
+										}}
+										className="text-[10px] px-1.5 py-0.5 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 border border-rose-500/30 rounded transition-colors"
+										title="Reject this file's changes">
+										Reject
+									</button>
+									<button
+										type="button"
+										onClick={(e) => {
+											e.stopPropagation()
+											handleAcceptFile(file.absPath)
+										}}
+										className="text-[10px] px-2 py-0.5 font-semibold text-emerald-300 hover:text-emerald-200 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 rounded shadow-sm transition-colors"
+										title="Accept this file's changes">
+										Accept
+									</button>
+								</div>
 							</div>
 						)
 					})}
