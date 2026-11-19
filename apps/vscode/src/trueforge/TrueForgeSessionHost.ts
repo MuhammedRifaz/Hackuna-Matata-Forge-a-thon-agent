@@ -91,6 +91,7 @@ interface ActiveTrueForgeSession {
 	lastReportedCacheTokens?: number
 	totalCost: number
 	failedModelIds: Set<string>
+	continuationCount?: number
 }
 
 function parseJsonSafe(raw: string): unknown {
@@ -252,11 +253,11 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			latest.spec.model = { name: candidate.name }
 			latest.spec.config = {
 				...latest.spec.config,
-				iterationLimit: 50,
+				iterationLimit: 80,
 				sandbox: { enabled: false, fileDownloads: false },
 				askUserQuestions: { enabled: true },
 				contextManagement: {
-					compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
+					compaction: { enabled: true, trigger: { type: "input_tokens", value: 60000 } },
 					largeToolResponse: { enabled: true },
 				},
 			}
@@ -408,11 +409,11 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 				latest.spec.config = {
 					...latest.spec.config,
-					iterationLimit: 50,
+					iterationLimit: 80,
 					sandbox: { enabled: false, fileDownloads: false },
 					askUserQuestions: { enabled: true },
 					contextManagement: {
-						compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
+						compaction: { enabled: true, trigger: { type: "input_tokens", value: 60000 } },
 						largeToolResponse: { enabled: true },
 					},
 				}
@@ -907,19 +908,23 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					}
 
 					const isIterationLimit = /iteration limit/i.test(turnErrorMessage)
-					if (isIterationLimit && !turnCancelled && iterationCount < 60) {
-						Logger.log(`[TrueForgeSessionHost] Iteration boundary reached in turn ${currentTurnId}. Seamlessly continuing into next turn without stopping...`)
-						this.emitAgentEvent(session.clineSessionId, {
-							type: "notice",
-							message: "Continuing execution into next turn...",
-						})
-						this.mcpServer.commitSessionEdits()
-						// Seamlessly invoke the next turn on the same session so user never has to click Retry
-						return this.send({
-							sessionId: input.sessionId,
-							prompt: "Please continue and complete the remaining work.",
-							mode: input.mode,
-						})
+					if (isIterationLimit && !turnCancelled) {
+						const count = (session.continuationCount || 0) + 1
+						session.continuationCount = count
+						if (count <= 3) {
+							Logger.log(`[TrueForgeSessionHost] Iteration boundary reached in turn ${currentTurnId}. Seamlessly continuing into turn ${count + 1}...`)
+							this.emitAgentEvent(session.clineSessionId, {
+								type: "notice",
+								message: "Iteration limit reached. Continuing execution into next turn to complete edits...",
+							})
+							this.mcpServer.commitSessionEdits()
+							// Seamlessly invoke the next turn on the same session so user never has to click Retry
+							return this.send({
+								sessionId: input.sessionId,
+								prompt: "Please continue. Do not read or search anymore — immediately use the 'editor' tool to apply your code and documentation changes, then run pytest to verify and complete the task.",
+								mode: input.mode,
+							})
+						}
 					}
 
 					session.status = "error"

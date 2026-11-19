@@ -215,7 +215,7 @@ export class TrueForgeClient {
 			modeGuidance,
 			"",
 			"EXECUTION & TOKEN-EFFICIENCY RULES:",
-			"1. USE ASSEMBLED CONTEXT FIRST: Turn 1 includes `[AST Symbol Map]` (exact line ranges) and `[Context Focus Snippets]` across target code, test, and doc files. Do NOT run `dir`, `ls`, `find`, or shell `grep` to rediscover files already shown. If you need extra lines, call `read_files` with exact `start_line`/`end_line` (or `search_files` with `regex`), using relative paths.",
+			"1. ZERO-DRIFT & 3-READ RULE: Turn 1 already includes `[AST Symbol Map]` (exact line ranges) and `[Context Focus Snippets]` showing the exact target files and symbols. Do NOT perform open-ended searches or read files repeatedly. You are allowed AT MOST 2 targeted reads to verify exact syntax, then you MUST IMMEDIATELY propose edits using the `editor` tool. Never postpone edits.",
 			"2. EDIT SURGICALLY VIA `editor`: Propose all edits via `editor` (`path`, exact `old_text`, `new_text`). Include 2-3 lines of surrounding context in `old_text` to guarantee exact match. Never leave placeholder tags (like `</>`), syntax errors, or duplicate code. Never edit files via shell or create temporary debug/verification scripts (e.g., `debug_*.py`, `verify_*.py`).",
 			"3. PRE-CONFIGURED RUNTIME: Project dependencies and test runners are pre-installed. Never create `.venv` or run `pip`/`uv`/`npm install`.",
 			"4. SINGLE TEST VERIFICATION & COMPLETION: Run the targeted test command ONCE via `run_commands` (e.g., `python -m pytest <file> -k <test> -q`). Never run `python -c` one-liners (they break on Windows shell quoting). Once exit 0 is confirmed and all requirements are met, you are 100% DONE: DO NOT re-read files you already edited, DO NOT run extra verification commands, and DO NOT re-run help. Conclude immediately with a concise summary.",
@@ -234,8 +234,8 @@ export class TrueForgeClient {
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
 				config: {
 					...baseManifest.config,
-					iteration_limit: 50,
-					iterationLimit: 50,
+					iteration_limit: 80,
+					iterationLimit: 80,
 					dynamic_sub_agents: { enabled: true },
 					dynamicSubAgents: { enabled: true },
 					sandbox: {
@@ -250,14 +250,14 @@ export class TrueForgeClient {
 					context_management: {
 						compaction: {
 							enabled: true,
-							trigger: { type: "input_tokens", value: 18000 },
+							trigger: { type: "input_tokens", value: 60000 },
 						},
 						large_tool_response: { enabled: true },
 					},
 					contextManagement: {
 						compaction: {
 							enabled: true,
-							trigger: { type: "input_tokens", value: 18000 },
+							trigger: { type: "input_tokens", value: 60000 },
 						},
 						largeToolResponse: { enabled: true },
 					},
