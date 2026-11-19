@@ -65,22 +65,22 @@ export const PostTaskDiffReviewBar: React.FC<PostTaskDiffReviewBarProps> = ({ vi
 						return (
 							<div
 								key={file.absPath}
-								className="pt-1.5 first:pt-0 flex items-center justify-between hover:bg-(--vscode-list-hoverBackground) px-1.5 py-1 rounded group transition-colors">
+								className="pt-1.5 first:pt-0 flex items-center justify-between hover:bg-(--vscode-list-hoverBackground) px-1.5 py-1 rounded group transition-colors gap-2">
 								<div
 									onClick={() => handleOpenFile(file.absPath)}
-									className="flex items-center gap-2 truncate cursor-pointer flex-1 min-w-0"
+									className="flex items-center gap-1.5 truncate cursor-pointer flex-1 min-w-0"
 									title={`Click to view diff for ${file.path}`}>
-									<span className="text-orange-400 font-bold text-sm leading-none">⊙</span>
-									<span className="text-emerald-400 font-mono text-[11px] font-semibold">+{file.additions}</span>
-									<span className="text-rose-400 font-mono text-[11px] font-semibold">-{file.deletions}</span>
-									<span className="font-medium text-foreground group-hover:text-blue-400 transition-colors truncate">
+									<span className="text-orange-400 font-bold text-xs leading-none shrink-0">⊙</span>
+									<span className="text-emerald-400 font-mono text-[11px] font-semibold shrink-0">+{file.additions}</span>
+									<span className="text-rose-400 font-mono text-[11px] font-semibold shrink-0">-{file.deletions}</span>
+									<span className="font-medium text-foreground group-hover:text-blue-400 transition-colors truncate shrink-0">
 										{fileName}
 									</span>
-									<span className="text-muted-foreground text-[10px] truncate max-w-[140px]">
+									<span className="text-muted-foreground text-[10px] truncate min-w-0 opacity-70">
 										{file.path}
 									</span>
 								</div>
-								<div className="flex items-center gap-1.5 ml-2 shrink-0">
+								<div className="flex items-center gap-1 shrink-0">
 									<button
 										type="button"
 										onClick={(e) => {

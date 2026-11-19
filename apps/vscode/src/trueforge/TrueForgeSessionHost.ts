@@ -114,6 +114,36 @@ function normalizeApprovalToolName(rawName: string): string {
 	return rawName
 }
 
+interface UnwrappedTool {
+	name: string
+	input: Record<string, unknown>
+	isMetaTool: boolean
+}
+
+function unwrapTrueForgeTool(rawName: string, rawInput: unknown): UnwrappedTool {
+	const norm = normalizeApprovalToolName(rawName)
+	const parsed: Record<string, unknown> =
+		typeof rawInput === "object" && rawInput !== null
+			? (rawInput as Record<string, unknown>)
+			: typeof rawInput === "string"
+				? ((parseJsonSafe(rawInput) as Record<string, unknown>) || {})
+				: {}
+
+	if (norm === "call_tool" && parsed) {
+		const innerName = String(parsed.tool_name || parsed.name || norm)
+		const innerInput = (parsed.input || parsed.arguments || {}) as Record<string, unknown>
+		return {
+			name: normalizeApprovalToolName(innerName),
+			input: typeof innerInput === "object" && innerInput !== null ? innerInput : {},
+			isMetaTool: false,
+		}
+	}
+	if (norm === "list_tools" || norm === "get_tool_info") {
+		return { name: norm, input: parsed, isMetaTool: true }
+	}
+	return { name: norm, input: parsed, isMetaTool: false }
+}
+
 async function readVscodeTrueForgeSettings(): Promise<{ baseUrl?: string; agentName?: string }> {
 	try {
 		const vscodeMod = await import("vscode")
@@ -572,15 +602,15 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								for (let idx = 0; idx < ev.toolCalls.length; idx++) {
 									const tc = ev.toolCalls[idx]
 									const callId = tc.id || `tc-${ev.id}-${idx}`
-									const toolName = normalizeApprovalToolName(tc.function?.name ?? "unknown")
-									const parsedInput = parseJsonSafe(tc.function?.arguments ?? "{}")
+									const rawName = tc.function?.name ?? "unknown"
+									const unwrapped = unwrapTrueForgeTool(rawName, tc.function?.arguments ?? "{}")
 									let tracked = toolCallsById.get(callId)
 									if (!tracked) {
 										tracked = {
 											id: callId,
-											name: toolName,
+											name: unwrapped.name,
 											rawArguments: tc.function?.arguments ?? "",
-											parsedInput,
+											parsedInput: unwrapped.input,
 											sourceEventId: ev.id,
 											startedEmitted: false,
 											endedEmitted: false,
@@ -588,7 +618,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 										toolCallsById.set(callId, tracked)
 										toolCallOrder[idx] = callId
 									}
-									if (!tracked.startedEmitted && !isApprovalManagedTool(toolName)) {
+									if (!tracked.startedEmitted && !unwrapped.isMetaTool && !isApprovalManagedTool(unwrapped.name)) {
 										tracked.startedEmitted = true
 										this.emitAgentEvent(session.clineSessionId, {
 											type: "content_start",
@@ -647,11 +677,12 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 									}
 									let tracked = toolCallsById.get(callId)
 									if (!tracked) {
+										const unwrapped = unwrapTrueForgeTool(tcDelta.function?.name ?? "unknown", "")
 										tracked = {
 											id: callId,
-											name: normalizeApprovalToolName(tcDelta.function?.name ?? "unknown"),
+											name: unwrapped.name,
 											rawArguments: "",
-											parsedInput: {},
+											parsedInput: unwrapped.input,
 											sourceEventId: activeSourceEventId || ev.id,
 											startedEmitted: false,
 											endedEmitted: false,
@@ -660,11 +691,14 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 										toolCallOrder[idx] = callId
 									}
 									if (tcDelta.function?.name) {
-										tracked.name = normalizeApprovalToolName(tcDelta.function.name)
+										const unwrapped = unwrapTrueForgeTool(tcDelta.function.name, tracked.rawArguments)
+										tracked.name = unwrapped.name
 									}
 									if (tcDelta.function?.arguments) {
 										tracked.rawArguments += tcDelta.function.arguments
-										tracked.parsedInput = parseJsonSafe(tracked.rawArguments)
+										const unwrapped = unwrapTrueForgeTool(tracked.name, tracked.rawArguments)
+										tracked.name = unwrapped.name
+										tracked.parsedInput = unwrapped.input
 									}
 								}
 							}
@@ -673,9 +707,11 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								for (const id of toolCallOrder) {
 									const tc = toolCallsById.get(id)
 									if (!tc) continue
-									tc.parsedInput = parseJsonSafe(tc.rawArguments)
+									const unwrapped = unwrapTrueForgeTool(tc.name, tc.rawArguments)
+									tc.name = unwrapped.name
+									tc.parsedInput = unwrapped.input
 									// Approval-gated tools wait until tool.approval_required so the approval ask renders first
-									if (!tc.startedEmitted && !isApprovalManagedTool(tc.name)) {
+									if (!tc.startedEmitted && !unwrapped.isMetaTool && !isApprovalManagedTool(tc.name)) {
 										tc.startedEmitted = true
 										this.emitAgentEvent(session.clineSessionId, {
 											type: "content_start",
@@ -832,25 +868,28 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 						case "tool.response": {
 							const tc = toolCallsById.get(ev.toolCallId)
-							if (tc && !tc.startedEmitted) {
-								tc.startedEmitted = true
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "content_start",
-									contentType: "tool",
-									toolCallId: tc.id,
-									toolName: tc.name,
-									input: tc.parsedInput,
-								})
-							}
-							if (tc && !tc.endedEmitted) {
-								tc.endedEmitted = true
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "content_end",
-									contentType: "tool",
-									toolCallId: tc.id,
-									toolName: tc.name,
-									output: ev.content,
-								})
+							const isMeta = tc ? unwrapTrueForgeTool(tc.name, tc.parsedInput).isMetaTool : false
+							if (!isMeta) {
+								if (tc && !tc.startedEmitted) {
+									tc.startedEmitted = true
+									this.emitAgentEvent(session.clineSessionId, {
+										type: "content_start",
+										contentType: "tool",
+										toolCallId: tc.id,
+										toolName: tc.name,
+										input: tc.parsedInput,
+									})
+								}
+								if (tc && !tc.endedEmitted) {
+									tc.endedEmitted = true
+									this.emitAgentEvent(session.clineSessionId, {
+										type: "content_end",
+										contentType: "tool",
+										toolCallId: tc.id,
+										toolName: tc.name,
+										output: ev.content,
+									})
+								}
 							}
 							break
 						}
@@ -903,7 +942,14 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					if (isQuotaOrAuthFailure) {
 						const shifted = await this.shiftToNextAvailableModel(session, turnErrorMessage)
 						if (shifted) {
-							return this.send(input)
+							// Cooldown pause so rolling rate limit window resets cleanly before the next turn
+							await new Promise((resolve) => setTimeout(resolve, 5000))
+							this.mcpServer.commitSessionEdits()
+							return this.send({
+								sessionId: input.sessionId,
+								prompt: "The previous model turn was interrupted by an API rate limit. All workspace code edits so far have been preserved. Continue the task from the current workspace state. Do NOT re-read already inspected files or repeat completed edits. Apply any remaining edits via 'editor', run pytest once via 'run_commands' to verify, and conclude immediately with your final summary.",
+								mode: input.mode,
+							})
 						}
 					}
 
@@ -981,7 +1027,14 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			if (isModelFailure) {
 				const shifted = await this.shiftToNextAvailableModel(session, formatted.message)
 				if (shifted) {
-					return this.send(input)
+					// Cooldown pause so rolling rate limit window resets cleanly before the next turn
+					await new Promise((resolve) => setTimeout(resolve, 5000))
+					this.mcpServer.commitSessionEdits()
+					return this.send({
+						sessionId: input.sessionId,
+						prompt: "The previous model turn was interrupted by an API rate limit. All workspace code edits so far have been preserved. Continue the task from the current workspace state. Do NOT re-read already inspected files or repeat completed edits. Apply any remaining edits via 'editor', run pytest once via 'run_commands' to verify, and conclude immediately with your final summary.",
+						mode: input.mode,
+					})
 				}
 			}
 

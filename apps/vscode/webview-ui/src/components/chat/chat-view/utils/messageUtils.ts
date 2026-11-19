@@ -158,11 +158,26 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 				return false
 			}
 			case "text":
-				// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
-				if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
+				// Sometimes cline returns an empty or whitespace-only text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
+				if ((message.text ?? "").trim() === "" && (message.images?.length ?? 0) === 0) {
 					return false
 				}
 				break
+			case "tool": {
+				try {
+					const tool = JSON.parse(message.text || "{}")
+					if (
+						tool.tool === "call_tool" ||
+						tool.tool === "list_tools" ||
+						tool.tool === "get_tool_info"
+					) {
+						return false
+					}
+				} catch {
+					// keep
+				}
+				break
+			}
 			case "mcp_server_request_started":
 				return false
 			case "use_subagents":

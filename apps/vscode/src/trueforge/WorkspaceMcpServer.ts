@@ -204,6 +204,7 @@ export class WorkspaceMcpServer {
 	private listeningUrl: string | undefined
 	private readonly originalFileSnapshots = new Map<string, { absPath: string; content: string | null; existed: boolean }>()
 	private readonly healthyPythonPathsCache = new Map<string, string[]>()
+	private lastToolExecTime = 0
 
 	constructor(private readonly options: WorkspaceMcpServerOptions) {}
 
@@ -461,6 +462,15 @@ export class WorkspaceMcpServer {
 	}
 
 	async executeTool(toolName: string, args: Record<string, unknown>): Promise<string> {
+		// Rate pacing: Ensure minimum 1.2s between tool turns so LLM provider rate limits (e.g. Gemini 15 RPM) are never tripped
+		const now = Date.now()
+		const elapsed = now - this.lastToolExecTime
+		const minPacingMs = 1200
+		if (this.lastToolExecTime > 0 && elapsed < minPacingMs) {
+			await new Promise((resolve) => setTimeout(resolve, minPacingMs - elapsed))
+		}
+		this.lastToolExecTime = Date.now()
+
 		const workspaceRoot = await this.options.getWorkspaceRoot()
 		const activeCall = this.options.consumeActiveToolCallContext?.(toolName)
 		const toolContext: AgentToolContext = {

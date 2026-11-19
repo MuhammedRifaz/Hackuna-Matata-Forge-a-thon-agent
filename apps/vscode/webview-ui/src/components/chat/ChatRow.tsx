@@ -98,7 +98,22 @@ interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange" | "onL
 }
 
 export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
-const InvisibleSpacer = () => <div aria-hidden className="h-px" />
+const InvisibleSpacer = () => <div aria-hidden className="hidden" />
+
+function isSpacerMessage(message: ClineMessage): boolean {
+	if (message.type === "say" && message.say === "text" && (message.text ?? "").trim() === "" && (message.images?.length ?? 0) === 0) {
+		return true
+	}
+	if (message.type === "say" && message.say === "tool") {
+		try {
+			const t = JSON.parse(message.text || "{}")
+			if (t.tool === "call_tool" || t.tool === "list_tools" || t.tool === "get_tool_info") {
+				return true
+			}
+		} catch {}
+	}
+	return false
+}
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
@@ -106,9 +121,10 @@ const ChatRow = memo(
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
+		const isSpacer = isSpacerMessage(message)
 
 		const [chatrow, { height }] = useSize(
-			<div className="relative pt-2.5 px-4">
+			<div className={isSpacer ? "hidden" : "relative pt-2.5 px-4"}>
 				<ChatRowContent {...props} />
 			</div>,
 		)
