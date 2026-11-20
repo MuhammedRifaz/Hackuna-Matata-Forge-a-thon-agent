@@ -585,6 +585,11 @@ ${ctx.cellJson || "{}"}
 
 	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
 
+	// Automatically focus the Pacior Code sidebar on launch so user is immediately in the agent panel
+	setTimeout(() => {
+		vscode.commands.executeCommand("claude-dev.SidebarProvider.focus").then(undefined, () => {})
+	}, 500)
+
 	return createClineAPI(webview.controller)
 }
 

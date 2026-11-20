@@ -31,17 +31,20 @@ if %errorlevel% neq 0 (
 )
 
 REM 3. Ensure Flask Practice evaluation repository exists parallel to TrueForge
-set "FLASK_DIR=%~dp0..\Flask Practice"
-if not exist "%FLASK_DIR%" (
-    echo [INFO] Parallel evaluation workspace Flask Practice not found.
+set "FLASK_DIR="
+for %%I in ("%~dp0..\Flask Practice") do set "FLASK_DIR=%%~fI"
+
+if not exist "%FLASK_DIR%\pyproject.toml" (
+    echo [INFO] Parallel evaluation workspace Flask Practice not found or incomplete.
     echo [INFO] Cloning Pallets Flask v3.1.3 into "%FLASK_DIR%"...
+    if exist "%FLASK_DIR%" rmdir /s /q "%FLASK_DIR%"
     git clone --depth 1 --branch 3.1.3 https://github.com/pallets/flask.git "%FLASK_DIR%"
     if !errorlevel! neq 0 (
         echo [WARNING] Failed to clone Flask repository via git. Creating directory fallback...
         mkdir "%FLASK_DIR%"
     )
 ) else (
-    echo [INFO] Evaluation workspace Flask Practice located.
+    echo [INFO] Evaluation workspace Flask Practice located at "%FLASK_DIR%".
 )
 
 REM 4. Build Extension and Webview if not already built
@@ -121,18 +124,29 @@ REM 6. Open TrueForge web UI in browser
 echo [INFO] Opening TrueForge web dashboard at http://localhost:8790 ...
 start http://localhost:8790
 
-REM 7. Launch VS Code with Pacior Code extension
-echo [INFO] Launching VS Code with Pacior Code extension in workspace...
-where code >nul 2>nul
-if %errorlevel% equ 0 (
-    code --extensionDevelopmentPath="%~dp0apps\vscode" "%FLASK_DIR%"
+REM 7. Launch VS Code with Pacior Code extension inside Flask Practice workspace
+echo [INFO] Launching VS Code with Pacior Code extension in "%FLASK_DIR%"...
+
+set "EXT_DIR="
+for %%I in ("%~dp0apps\vscode") do set "EXT_DIR=%%~fI"
+
+REM Find VS Code executable (PATH or standard Windows installations)
+set "CODE_CMD="
+where code >nul 2>nul && set "CODE_CMD=code"
+if not defined CODE_CMD if exist "%LOCALAPPDATA%\Programs\Microsoft VS Code\bin\code.cmd" set "CODE_CMD=%LOCALAPPDATA%\Programs\Microsoft VS Code\bin\code.cmd"
+if not defined CODE_CMD if exist "%ProgramFiles%\Microsoft VS Code\bin\code.cmd" set "CODE_CMD=%ProgramFiles%\Microsoft VS Code\bin\code.cmd"
+if not defined CODE_CMD if exist "%ProgramFiles(x86)%\Microsoft VS Code\bin\code.cmd" set "CODE_CMD=%ProgramFiles(x86)%\Microsoft VS Code\bin\code.cmd"
+
+if defined CODE_CMD (
+    echo [INFO] Opening fresh VS Code window for "%FLASK_DIR%"...
+    call "%CODE_CMD%" -n "%FLASK_DIR%" --extensionDevelopmentPath="%EXT_DIR%"
 ) else (
-    echo [WARNING] code command not found in PATH.
-    echo Please open VS Code, press F5 or Run Extension targeting apps\vscode.
+    echo [WARNING] VS Code CLI (code) not found in PATH or standard installation directories.
+    echo Please open VS Code, open folder "%FLASK_DIR%", and load extension from "%EXT_DIR%".
 )
 
 echo =================================================================
-echo   [OK] Pacior Code launched!
+echo   [OK] Pacior Code launched in Flask Practice!
 echo   1. Check TrueForge in browser: http://localhost:8790
-echo   2. Click the Pacior Code icon in the left Activity Bar of VS Code
+echo   2. Check VS Code: Flask Practice workspace is active in sidebar
 echo =================================================================
