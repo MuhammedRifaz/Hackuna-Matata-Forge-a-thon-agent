@@ -91,6 +91,7 @@ interface ActiveTrueForgeSession {
 	lastReportedCacheTokens?: number
 	totalCost: number
 	failedModelIds: Set<string>
+	notifiedFailedModelIds: Set<string>
 	continuationCount?: number
 }
 
@@ -338,19 +339,25 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 			}
 
-			// Emit visible error card followed by fallback notice card so the user sees both clearly
+			// Emit visible error card followed by fallback notice card EXACTLY ONCE per failed model
 			const failedModel = session.modelId === chosenCandidate.name ? (Array.from(session.failedModelIds)[0] || "configured model") : session.modelId
-			const errorMsg = `❌ **Model Request Error**: Model "${failedModel}" failed (${failedReason ? failedReason.slice(0, 100) : "model error"}).`
-			this.emitAgentEvent(session.clineSessionId, {
-				type: "notice",
-				message: errorMsg,
-			})
+			if (!session.notifiedFailedModelIds) {
+				session.notifiedFailedModelIds = new Set<string>()
+			}
+			if (!session.notifiedFailedModelIds.has(failedModel)) {
+				session.notifiedFailedModelIds.add(failedModel)
+				const errorMsg = `❌ **Model Request Error**: Model "${failedModel}" failed (${failedReason ? failedReason.slice(0, 100) : "model error"}).`
+				this.emitAgentEvent(session.clineSessionId, {
+					type: "notice",
+					message: errorMsg,
+				})
 
-			const shiftMessage = `⚠️ **Automatic Model Fallback (Criterion B3)**: Primary model "${failedModel}" was unreachable/failed. Automatically failed over to configured model "${chosenCandidate.name}". Workspace unchanged.`
-			this.emitAgentEvent(session.clineSessionId, {
-				type: "notice",
-				message: shiftMessage,
-			})
+				const shiftMessage = `⚠️ **Automatic Model Fallback (Criterion B3)**: Primary model "${failedModel}" was unreachable/failed. Automatically failed over to configured model "${chosenCandidate.name}". Workspace unchanged.`
+				this.emitAgentEvent(session.clineSessionId, {
+					type: "notice",
+					message: shiftMessage,
+				})
+			}
 
 			return true
 		} catch (err) {
@@ -431,6 +438,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				totalCacheReadTokens: 0,
 				totalCost: 0,
 				failedModelIds: new Set<string>(),
+				notifiedFailedModelIds: new Set<string>(),
 			})
 
 			if (initialErrorNotice) {
@@ -510,10 +518,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					mode: session.mode,
 					requireApprovalForTools: this.getEffectiveApprovalTools(),
 				})
-				if (session.failedModelIds.has(latest.spec.model?.name ?? "") || session.failedModelIds.has(session.modelId)) {
+				if (session.failedModelIds.has(session.modelId)) {
 					await this.shiftToNextAvailableModel(session, "Model previously failed in this session")
 					latest.spec.model = { name: session.modelId }
-				} else if (session.failedModelIds.size > 0) {
+				} else if (session.modelId) {
 					latest.spec.model = { name: session.modelId }
 				}
 				latest.spec.config = {
