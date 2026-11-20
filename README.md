@@ -28,7 +28,7 @@
 - 🧠 **TrueForge Native Agent Loop**: All model streaming, SSE events, and session turns run on TrueForge (`http://localhost:8790`).
 - 🛠️ **Full Editor MCP Server**: Exposes `read_files`, `editor`, `write_to_file`, `run_commands`, `list_files`, and `search_files` as standard MCP tools.
 - 🎯 **PACIOR Context Engine (Criterion B1)**: AST structural dependency graph slicing and IDF lexical ranking assembling compact context under strict token budgets.
-- 🗜️ **Automatic Context Compaction (Criterion B2)**: Calibrated at 18,000 tokens to keep prompt size lean and prevent token explosion (~200k–300k total tokens per task).
+- 🗜️ **Automatic Context Compaction (Criterion B2)**: Calibrated at 12,000 tokens to keep prompt size lean and prevent token explosion (~150k–250k total tokens per task).
 - 🛡️ **Dynamic Resilient Model Shifting (Criterion B3 & Task C)**: Automatically detects 429 rate limits or provider failures, shifts to the next available model, preserves all workspace edits, and resumes without restarting from step 0.
 - 🔍 **Antigravity-Style Post-Task Diff Review (Criterion B4)**: Non-blocking autonomous execution with post-task in-editor hunk CodeLenses (`✓Accept | ✕Reject`) and a chat footer review summary.
 
@@ -59,32 +59,27 @@ You can evaluate Pacior Code on any clean machine (Windows, macOS, Linux) in min
 
 ---
 
-### Option A: One-Command Turnkey Launcher (Recommended)
+### Option A: Automated Evaluator Launchers (Windows CMD / Turnkey)
 
-Clone the repository and run the automated evaluator launcher:
+We provide dedicated standalone `.bat` scripts tailored for evaluation on any Windows machine:
 
-#### On Windows (CMD / Double-Click):
-```cmd
-git clone https://github.com/MuhammedRifaz/Pacior-Code-Forge-a-thon-agent.git TrueForge
-cd TrueForge
-setup.bat
-```
+1. **Turnkey Launcher (Extension + TrueForge Server)**:
+   ```cmd
+   setup.bat
+   ```
+   *Auto-clones `pallets/flask` (v3.1.3), verifies/builds the extension, starts TrueForge with outbound network access allowed (`ALLOW_OUTBOUND=true`), opens the dashboard in browser (`http://localhost:8790`), and opens VS Code directly inside the `Flask Practice` workspace.*
 
-#### On Linux / macOS (Bash):
-```bash
-git clone https://github.com/MuhammedRifaz/Pacior-Code-Forge-a-thon-agent.git TrueForge
-cd TrueForge
-chmod +x start.sh
-./start.sh
-```
+2. **Run TrueForge Harness Only (Outbound Network Allowed)**:
+   ```cmd
+   run-trueforge.bat
+   ```
+   *Starts the TrueForge agent server on port 8790 with outbound URL/network access explicitly permitted (`ALLOW_OUTBOUND=true`, `TRUEFORGE_ALLOW_OUTBOUND=true`) and opens `http://localhost:8790`.*
 
-**What the turnkey script does automatically:**
-1. Checks and verifies Node.js (≥22), Bun, and Python.
-2. Clones the evaluation workspace [`pallets/flask`](https://github.com/pallets/flask) (pinned at v3.1.3) into the parallel directory `../Flask Practice` if not already present.
-3. Installs monorepo dependencies (`bun install`) and compiles SDK packages (`bun run build:sdk`).
-4. Builds the Vite React Webview (`apps/vscode/webview-ui`) and bundles the extension with esbuild (`apps/vscode/dist/extension.js`).
-5. Checks if TrueForge is running; if not, automatically launches `npx @truefoundry/trueforge` in the background and opens **`http://localhost:8790`** in your default browser.
-6. Launches VS Code with Pacior Code preloaded directly inside the `Flask Practice` workspace.
+3. **Run VS Code Extension Only**:
+   ```cmd
+   run-extension.bat
+   ```
+   *Ensures `Flask Practice` evaluation workspace exists and launches a fresh VS Code window directly into `Flask Practice` with the Pacior Code extension loaded.*
 
 ---
 
@@ -154,8 +149,9 @@ Click the **Pacior Code** icon in the VS Code Activity Bar (left sidebar) to ope
 │                                                       │                │
 │   ┌──────────────────────────────────────────────┐    │                │
 │   │  Agent Execution Loop (agent.pacior.yaml)    │    │                │
-│   │  - Iteration Limit: 80                       │    │                │
-│   │  - Auto-Compaction: 18,000 tokens            │    │                │
+│   │  - Iteration Limit: 25                       │    │                │
+│   │  - Auto-Compaction: 12,000 tokens            │    │                │
+│   │  - Outbound URLs: ALLOWED                    │    │                │
 │   │  - Dynamic Fallback Routing                  │    │                │
 │   └──────────────────────┬───────────────────────┘    │                │
 │                          │ Tool Call (Streamable HTTP)│                │

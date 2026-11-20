@@ -108,12 +108,17 @@ if not exist "%WEBVIEW_INDEX%" (
 )
 echo [SUCCESS] Extension and Webview bundles verified.
 
-REM 5. Start TrueForge Harness Server if not running
+REM 5. Start TrueForge Harness Server if not running (Outbound URLs Allowed)
+echo [INFO] Enabling outbound network access for TrueForge sandbox...
+set ALLOW_OUTBOUND=true
+set TRUEFORGE_ALLOW_OUTBOUND=true
+set TRUEFORGE_SANDBOX_ALLOW_OUTBOUND=true
+
 echo [INFO] Checking TrueForge Agent Harness at http://localhost:8790 ...
 curl -s -m 2 http://localhost:8790 >nul 2>nul
 if %errorlevel% neq 0 (
     echo [INFO] Starting TrueForge harness in background: npx @truefoundry/trueforge ...
-    start "TrueForge Agent Harness" cmd /k "npx @truefoundry/trueforge"
+    start "TrueForge Agent Harness" cmd /k "set ALLOW_OUTBOUND=true&& set TRUEFORGE_ALLOW_OUTBOUND=true&& npx @truefoundry/trueforge"
     echo [INFO] Waiting for TrueForge server to boot...
     ping -n 6 127.0.0.1 >nul
 ) else (

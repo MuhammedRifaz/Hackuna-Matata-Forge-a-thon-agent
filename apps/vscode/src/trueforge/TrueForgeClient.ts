@@ -243,6 +243,12 @@ export class TrueForgeClient {
 						enabled: false,
 						file_downloads: false,
 						fileDownloads: false,
+						allow_outbound: true,
+						allowOutbound: true,
+					},
+					network: {
+						allow_outbound: true,
+						allowOutbound: true,
 					},
 					generative_ui: { enabled: false },
 					generativeUi: { enabled: false },
@@ -251,16 +257,16 @@ export class TrueForgeClient {
 					context_management: {
 						compaction: {
 							enabled: true,
-							trigger: { type: "input_tokens", value: 18000 },
+							trigger: { type: "input_tokens", value: 12000 },
 						},
-						large_tool_response: { enabled: true },
+						large_tool_response: { enabled: true, max_tokens: 1500 },
 					},
 					contextManagement: {
 						compaction: {
 							enabled: true,
-							trigger: { type: "input_tokens", value: 18000 },
+							trigger: { type: "input_tokens", value: 12000 },
 						},
-						largeToolResponse: { enabled: true },
+						largeToolResponse: { enabled: true, maxTokens: 1500 },
 					},
 				} as any,
 			},

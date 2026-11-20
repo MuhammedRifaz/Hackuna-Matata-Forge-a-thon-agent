@@ -111,10 +111,55 @@ export function canRestoreWorkspaceFromMessage(messages: ClineMessage[], message
 }
 
 /**
+ * Check if a message is an invisible spacer that should not be rendered as a card
+ */
+export function isSpacerMessage(message: ClineMessage): boolean {
+	if (message.type === "say") {
+		if (message.say === "text" && (message.text ?? "").trim() === "" && (message.images?.length ?? 0) === 0) {
+			return true
+		}
+		if (message.say === "reasoning" && (message.text ?? "").trim() === "") {
+			return true
+		}
+		if (
+			message.say === "api_req_finished" ||
+			message.say === "deleted_api_reqs" ||
+			message.say === "subagent_usage" ||
+			message.say === "checkpoint_created" ||
+			message.say === "mcp_server_request_started"
+		) {
+			return true
+		}
+		if (message.say === "api_req_started") {
+			try {
+				const info = JSON.parse(message.text || "{}")
+				if (!info.cancelReason && !info.streamingFailedMessage && !info.cost) {
+					return true
+				}
+			} catch {
+				return true
+			}
+		}
+		if (message.say === "tool") {
+			try {
+				const t = JSON.parse(message.text || "{}")
+				if (t.tool === "call_tool" || t.tool === "list_tools" || t.tool === "get_tool_info") {
+					return true
+				}
+			} catch {}
+		}
+	}
+	return false
+}
+
+/**
  * Filter messages that should be visible in the chat
  */
 export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] {
 	return messages.filter((message, index, arr) => {
+		if (isSpacerMessage(message)) {
+			return false
+		}
 		if (isDuplicateAskOptionEcho(message, arr[index - 1])) {
 			return false
 		}
