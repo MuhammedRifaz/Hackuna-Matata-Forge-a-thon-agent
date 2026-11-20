@@ -16,7 +16,7 @@ const IGNORED_DIRS = new Set([".git", ".pacior", "node_modules", "__pycache__", 
 const MAX_READ_LINES = 80
 const MAX_SEARCH_MATCHES = 20
 const MAX_LIST_ENTRIES = 100
-const DEFAULT_COMMAND_TIMEOUT_MS = 120_000
+const DEFAULT_COMMAND_TIMEOUT_MS = 30_000
 
 export interface WorkspaceMcpServerOptions {
 	/** Returns the active workspace root directory. */
@@ -935,6 +935,12 @@ export class WorkspaceMcpServer {
 
 		for (const command of rawCommands) {
 			let normalizedCmd = command.trim()
+
+			// Guard against persistent blocking server commands that freeze execution
+			if (/\bapp\.run\s*\(/i.test(normalizedCmd) || (/\bflask\s+run\b/i.test(normalizedCmd) && !normalizedCmd.includes("--help"))) {
+				outputs.push(`$ ${command}\n[exit 1]\n[Blocked] Cannot start a persistent development server (app.run() / flask run) inside automated tool execution. It blocks the terminal indefinitely. Use CliRunner or flask --help instead.`)
+				continue
+			}
 			if (isWin) {
 				// Strip unix pipeline wrappers frequently emitted by models
 				normalizedCmd = normalizedCmd
