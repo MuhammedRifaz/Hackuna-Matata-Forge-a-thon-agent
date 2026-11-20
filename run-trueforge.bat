@@ -22,6 +22,9 @@ set TRUEFORGE_ALLOW_OUTBOUND=true
 set TRUEFORGE_SANDBOX_ALLOW_OUTBOUND=true
 set NETWORK_POLICY_ENABLED=false
 
+REM 2b. Apply Gemini Tool-Calling Thought-Signature Compatibility Patch
+node "%~dp0scripts\patch-gemini-signature.js"
+
 REM 3. Check if server is already running on port 8790
 curl -s -m 2 http://localhost:8790 >nul 2>nul
 if %errorlevel% equ 0 (

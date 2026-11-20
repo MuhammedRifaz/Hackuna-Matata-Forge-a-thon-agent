@@ -70,6 +70,13 @@ export function formatTrueForgeError(error: unknown, baseUrl: string): { message
 				code: "TRUEFORGE_RATE_LIMIT",
 			}
 		}
+		if (status === 400 && /thought_signature|INVALID_ARGUMENT/i.test(bodyText)) {
+			return {
+				message: `Gemini thought signature error (HTTP 400): ${bodyText}. Automatically shifting to next available working model.`,
+				status,
+				code: "TRUEFORGE_MODEL_ERROR",
+			}
+		}
 		return {
 			message: `TrueForge API error${status ? ` (HTTP ${status})` : ""}: ${bodyText}`,
 			status,

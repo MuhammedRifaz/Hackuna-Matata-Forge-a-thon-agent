@@ -586,7 +586,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				} catch (streamInitErr) {
 					// B3: Automatic model shift when stream initiation fails (e.g. invalid endpoint, wrong key, 401/403/429)
 					const errMsg = streamInitErr instanceof Error ? streamInitErr.message : String(streamInitErr)
-					const isFailoverCandidate = /401|403|429|rate limit|quota|unreachable|fetch failed|econnrefused|not found|502|503/i.test(errMsg)
+					const isFailoverCandidate = /401|403|429|rate limit|quota|unreachable|fetch failed|econnrefused|not found|502|503|400|INVALID_ARGUMENT|thought_signature/i.test(errMsg)
 					if (isFailoverCandidate) {
 						await this.mcpServer.rollbackSessionEdits().catch(() => {})
 						const shifted = await this.shiftToNextAvailableModel(session, errMsg)
@@ -957,8 +957,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 
 				if (turnErrorMessage) {
-					// B3: Automatic dynamic model shift to next available model on quota/rate/provider/stream errors
-					const isQuotaOrAuthFailure = /rate limit|quota|429|unauthorized|401|403|overloaded|503|502|Response stream ended without a finish reason|stream ended/i.test(turnErrorMessage)
+					// B3: Automatic dynamic model shift to next available model on quota/rate/provider/stream/signature errors
+					const isQuotaOrAuthFailure = /rate limit|quota|429|unauthorized|401|403|overloaded|503|502|Response stream ended without a finish reason|stream ended|400|INVALID_ARGUMENT|thought_signature/i.test(turnErrorMessage)
 					if (isQuotaOrAuthFailure) {
 						const shifted = await this.shiftToNextAvailableModel(session, turnErrorMessage)
 						if (shifted) {
@@ -1041,7 +1041,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			Logger.error(`[TrueForgeSessionHost] Turn failed: ${formatted.message}`)
 
 			// B3: Automatic dynamic model shift to next available model
-			const isModelFailure = /model|rate limit|quota|unauthorized|failed to fetch|overloaded|503|502|429/i.test(
+			const isModelFailure = /model|rate limit|quota|unauthorized|failed to fetch|overloaded|503|502|429|400|INVALID_ARGUMENT|thought_signature/i.test(
 				formatted.message,
 			)
 			if (isModelFailure) {

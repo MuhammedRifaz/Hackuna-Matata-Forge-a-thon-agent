@@ -115,11 +115,14 @@ set TRUEFORGE_ALLOW_OUTBOUND=true
 set TRUEFORGE_SANDBOX_ALLOW_OUTBOUND=true
 set NETWORK_POLICY_ENABLED=false
 
+REM 5b. Apply Gemini Tool-Calling Thought-Signature Compatibility Patch
+node "%~dp0scripts\patch-gemini-signature.js"
+
 echo [INFO] Checking TrueForge Agent Harness at http://localhost:8790 ...
 curl -s -m 2 http://localhost:8790 >nul 2>nul
 if %errorlevel% neq 0 (
     echo [INFO] Starting TrueForge harness in background: npx @truefoundry/trueforge ...
-    start "TrueForge Agent Harness" cmd /k "set ALLOW_OUTBOUND=true&& set TRUEFORGE_ALLOW_OUTBOUND=true&& set TRUEFORGE_SANDBOX_ALLOW_OUTBOUND=true&& set NETWORK_POLICY_ENABLED=false&& npx @truefoundry/trueforge"
+    start "TrueForge Agent Harness" cmd /k "node \"%~dp0scripts\patch-gemini-signature.js\"&& set ALLOW_OUTBOUND=true&& set TRUEFORGE_ALLOW_OUTBOUND=true&& set TRUEFORGE_SANDBOX_ALLOW_OUTBOUND=true&& set NETWORK_POLICY_ENABLED=false&& npx @truefoundry/trueforge"
     echo [INFO] Waiting for TrueForge server to boot...
     ping -n 6 127.0.0.1 >nul
 ) else (

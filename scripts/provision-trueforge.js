@@ -3,6 +3,8 @@
  * on initial launch or fresh laptops.
  */
 
+import "./patch-gemini-signature.js";
+
 async function main() {
 	const base = "http://localhost:8790/api/v1";
 
