@@ -142,7 +142,11 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "subagent_usage": // aggregated subagent usage metrics for task-level accounting
 			case "checkpoint_created": // checkpoint restore is exposed from user-message edit controls
 				return false
-			// NOTE: reasoning passes through to be included in tool groups
+			case "reasoning":
+				if ((message.text ?? "").trim() === "") {
+					return false
+				}
+				break
 			case "api_req_started": {
 				// api_req_started rows only render visible content for errors/cancels.
 				// Reasoning has its own standalone ChatRows. Everything else renders
@@ -152,9 +156,7 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 					if (info.cancelReason || info.streamingFailedMessage) {
 						break // keep - has error content
 					}
-				} catch {
-					break // keep on parse error to be safe
-				}
+				} catch {}
 				return false
 			}
 			case "text":

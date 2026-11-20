@@ -194,7 +194,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	// Keep footer as a simple spacer. Thinking loading is rendered as an in-list row.
 	const virtuosoComponents = useMemo(
 		() => ({
-			Footer: () => <div className="min-h-1" />,
+			Footer: () => <div className="h-6" />,
 		}),
 		[],
 	)
@@ -214,7 +214,10 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 				/>
 			</div>
 
-			<div className="grow flex relative" ref={scrollContainerRef}>
+			<div
+				className="grow flex relative"
+				ref={scrollContainerRef}
+				style={{ paddingTop: scrolledPastUserMessage ? "36px" : undefined }}>
 				{/* Empty-list fast path: paint the loader immediately without waiting for the
 				    virtualized list's initial measure/render cycle. Mirrors the in-list row's
 				    markup (MessageRenderer wrapper + ChatRow) so the swap to a real row later

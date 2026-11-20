@@ -101,16 +101,39 @@ export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 
 const InvisibleSpacer = () => <div aria-hidden className="hidden" />
 
 function isSpacerMessage(message: ClineMessage): boolean {
-	if (message.type === "say" && message.say === "text" && (message.text ?? "").trim() === "" && (message.images?.length ?? 0) === 0) {
-		return true
-	}
-	if (message.type === "say" && message.say === "tool") {
-		try {
-			const t = JSON.parse(message.text || "{}")
-			if (t.tool === "call_tool" || t.tool === "list_tools" || t.tool === "get_tool_info") {
+	if (message.type === "say") {
+		if (message.say === "text" && (message.text ?? "").trim() === "" && (message.images?.length ?? 0) === 0) {
+			return true
+		}
+		if (message.say === "reasoning" && (message.text ?? "").trim() === "") {
+			return true
+		}
+		if (
+			message.say === "api_req_finished" ||
+			message.say === "deleted_api_reqs" ||
+			message.say === "subagent_usage" ||
+			message.say === "checkpoint_created"
+		) {
+			return true
+		}
+		if (message.say === "api_req_started") {
+			try {
+				const info = JSON.parse(message.text || "{}")
+				if (!info.cancelReason && !info.streamingFailedMessage && !info.cost) {
+					return true
+				}
+			} catch {
 				return true
 			}
-		} catch {}
+		}
+		if (message.say === "tool") {
+			try {
+				const t = JSON.parse(message.text || "{}")
+				if (t.tool === "call_tool" || t.tool === "list_tools" || t.tool === "get_tool_info") {
+					return true
+				}
+			} catch {}
+		}
 	}
 	return false
 }
@@ -915,8 +938,8 @@ export const ChatRowContent = memo(
 
 						if (isAstBlock) {
 							return (
-								<div className="border border-purple-500/70 bg-purple-950/30 text-purple-200 rounded-lg p-3.5 my-2 shadow-md select-text">
-									<div className="flex items-center gap-2 mb-2 font-semibold text-purple-300 text-xs">
+								<div className="border border-purple-500/70 bg-purple-950/30 text-purple-200 rounded-lg p-3 my-1 shadow-md select-text">
+									<div className="flex items-center gap-2 mb-1.5 font-semibold text-purple-300 text-xs">
 										<span className="text-base leading-none">🔮</span>
 										<span>TrueForge AST Context Assembly (Criterion B1)</span>
 									</div>
@@ -927,7 +950,7 @@ export const ChatRowContent = memo(
 
 						if (isFallbackBlock) {
 							return (
-								<div className="border border-amber-500/80 bg-amber-950/35 text-amber-200 rounded-lg p-3.5 my-2 shadow-md flex items-start gap-2.5 select-text">
+								<div className="border border-amber-500/80 bg-amber-950/35 text-amber-200 rounded-lg p-3 my-1 shadow-md flex items-start gap-2.5 select-text">
 									<span className="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
 									<div className="flex-1 min-w-0">
 										<div className="font-semibold text-amber-300 text-xs mb-1">
@@ -941,7 +964,7 @@ export const ChatRowContent = memo(
 
 						if (isCompactionBlock) {
 							return (
-								<div className="border border-sky-500/70 bg-sky-950/30 text-sky-200 rounded-lg p-3 my-2 shadow-md flex items-center gap-2.5 select-text">
+								<div className="border border-sky-500/70 bg-sky-950/30 text-sky-200 rounded-lg p-2.5 my-1 shadow-md flex items-center gap-2.5 select-text">
 									<span className="text-sky-400 text-base leading-none">⚡</span>
 									<div className="flex-1 min-w-0 text-xs">
 										<div className="font-semibold text-sky-300 mb-0.5">
@@ -999,7 +1022,7 @@ export const ChatRowContent = memo(
 							rawInfo.includes("failed over")
 						) {
 							return (
-								<div className="border border-amber-500/80 bg-amber-950/35 text-amber-200 rounded-lg p-3.5 my-2 shadow-md flex items-start gap-2.5 select-text">
+								<div className="border border-amber-500/80 bg-amber-950/35 text-amber-200 rounded-lg p-3 my-1 shadow-md flex items-start gap-2.5 select-text">
 									<span className="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
 									<div className="flex-1 min-w-0">
 										<div className="font-semibold text-amber-300 text-xs mb-1">
@@ -1012,8 +1035,8 @@ export const ChatRowContent = memo(
 						}
 						if (rawInfo.includes("Context Assembly") || rawInfo.includes("AST")) {
 							return (
-								<div className="border border-purple-500/70 bg-purple-950/30 text-purple-200 rounded-lg p-3.5 my-2 shadow-md select-text">
-									<div className="flex items-center gap-2 mb-2 font-semibold text-purple-300 text-xs">
+								<div className="border border-purple-500/70 bg-purple-950/30 text-purple-200 rounded-lg p-3 my-1 shadow-md select-text">
+									<div className="flex items-center gap-2 mb-1.5 font-semibold text-purple-300 text-xs">
 										<span className="text-base leading-none">🔮</span>
 										<span>TrueForge AST Context Assembly (Criterion B1)</span>
 									</div>
@@ -1022,7 +1045,7 @@ export const ChatRowContent = memo(
 							)
 						}
 						return (
-							<div className="border border-sky-500/60 bg-sky-950/30 text-sky-200 rounded-md p-2.5 my-2 text-xs select-text">
+							<div className="border border-sky-500/60 bg-sky-950/30 text-sky-200 rounded-md p-2.5 my-1 text-xs select-text">
 								<MarkdownRow markdown={rawInfo} showCursor={false} />
 							</div>
 						)
