@@ -4,44 +4,162 @@ import { Logger } from "@/shared/services/Logger"
 import { TrueForgeClient } from "./TrueForgeClient"
 import { VscodeEditPreview } from "@/hosts/vscode/VscodeEditPreview"
 import type { VscodeWebviewProvider } from "@/hosts/vscode/VscodeWebviewProvider"
+import { sendChatButtonClickedEvent } from "@/core/controller/ui/subscribeToChatButtonClicked"
+import { pushMessageToWebview } from "@/sdk/webview-grpc-bridge"
+import type { ClineMessage } from "@/shared/ExtensionMessage"
 
-async function postInlineEditToChatUi(message: { type: "say"; say: "info" | "text" | "error"; text: string }): Promise<void> {
+interface InlineChatSession {
+	controller: any
+	taskId: string
+	seq: number
+	reasoningTs: number
+	textTs: number
+	accumulatedReasoning: string
+	accumulatedText: string
+}
+
+async function startInlineChatSession(initialTaskPrompt: string): Promise<InlineChatSession | undefined> {
 	try {
 		const { WebviewProvider } = await import("@/core/webview/WebviewProvider")
 		const sidebar = WebviewProvider.getInstance() as VscodeWebviewProvider | undefined
 		const controller = sidebar?.controller
+		if (!controller) return undefined
+
+		// 1. Clear any active or stale task and reset view
+		await controller.clearTask()
+		// 2. Switch webview immediately to Chat tab (away from history/welcome cards)
+		await sendChatButtonClickedEvent()
+
+		const taskId = `inline-${Date.now()}`
+		const { createTaskProxy } = await import("@/sdk/task-proxy")
+		controller.task = createTaskProxy(
+			taskId,
+			controller.askResponse,
+			controller.cancelTask,
+		)
+
+		// 3. Add initial task message to open the chat interface with task prompt
+		const taskMsg: ClineMessage = {
+			ts: Date.now(),
+			type: "say",
+			say: "task",
+			text: initialTaskPrompt,
+			partial: false,
+		}
+		controller.task.messageStateHandler.addMessages([taskMsg])
+
+		// 4. Set turn state to "streaming" so thinking loader and realtime streaming activate
+		if (controller.turnStateTracker?.set) {
+			controller.turnStateTracker.set("streaming")
+		}
+
+		// 5. Post state to webview immediately so new chat view is mounted
+		await controller.postStateToWebview()
+
+		return {
+			controller,
+			taskId,
+			seq: 1,
+			reasoningTs: Date.now() + 1,
+			textTs: Date.now() + 2,
+			accumulatedReasoning: "",
+			accumulatedText: "",
+		}
+	} catch (e) {
+		Logger.warn(`[PaciorInlineEditor] Failed to start inline chat session: ${e}`)
+		return undefined
+	}
+}
+
+async function streamReasoningDelta(session: InlineChatSession | undefined, delta: string): Promise<void> {
+	if (!session || !delta) return
+	session.accumulatedReasoning += delta
+	session.seq += 1
+	const msg: ClineMessage = {
+		ts: session.reasoningTs,
+		type: "say",
+		say: "reasoning",
+		text: session.accumulatedReasoning,
+		partial: true,
+		seq: session.seq,
+	}
+	// Update in task message handler
+	session.controller.task?.messageStateHandler?.addMessages([msg])
+	// Push directly through realtime partial message gRPC stream
+	await pushMessageToWebview(msg)
+}
+
+async function streamTextDelta(session: InlineChatSession | undefined, delta: string): Promise<void> {
+	if (!session || !delta) return
+	session.accumulatedText += delta
+	session.seq += 1
+	const msg: ClineMessage = {
+		ts: session.textTs,
+		type: "say",
+		say: "text",
+		text: session.accumulatedText,
+		partial: true,
+		seq: session.seq,
+	}
+	session.controller.task?.messageStateHandler?.addMessages([msg])
+	await pushMessageToWebview(msg)
+}
+
+async function completeReasoningStream(session: InlineChatSession | undefined): Promise<void> {
+	if (!session || !session.accumulatedReasoning) return
+	session.seq += 1
+	const msg: ClineMessage = {
+		ts: session.reasoningTs,
+		type: "say",
+		say: "reasoning",
+		text: session.accumulatedReasoning,
+		partial: false,
+		seq: session.seq,
+	}
+	session.controller.task?.messageStateHandler?.addMessages([msg])
+	await pushMessageToWebview(msg)
+}
+
+async function completeTextStream(session: InlineChatSession | undefined): Promise<void> {
+	if (!session || !session.accumulatedText) return
+	session.seq += 1
+	const msg: ClineMessage = {
+		ts: session.textTs,
+		type: "say",
+		say: "text",
+		text: session.accumulatedText,
+		partial: false,
+		seq: session.seq,
+	}
+	session.controller.task?.messageStateHandler?.addMessages([msg])
+	await pushMessageToWebview(msg)
+}
+
+async function postInlineCardMessage(
+	session: InlineChatSession | undefined,
+	message: { type: "say"; say: "info" | "text" | "error"; text: string },
+): Promise<void> {
+	try {
+		const { WebviewProvider } = await import("@/core/webview/WebviewProvider")
+		const sidebar = WebviewProvider.getInstance() as VscodeWebviewProvider | undefined
+		const controller = sidebar?.controller ?? session?.controller
 		if (!controller) return
 
-		if (!controller.task) {
-			const { createTaskProxy } = await import("@/sdk/task-proxy")
-			controller.task = createTaskProxy(
-				`inline-${Date.now()}`,
-				controller.askResponse,
-				controller.cancelTask,
-			)
-			controller.task.messageStateHandler.addMessages([
-				{
-					ts: Date.now(),
-					type: "say",
-					say: "task",
-					text: message.text,
-					partial: false,
-				},
-			])
-		} else {
-			controller.task.messageStateHandler.addMessages([
-				{
-					ts: Date.now(),
-					type: message.type,
-					say: message.say,
-					text: message.text,
-					partial: false,
-				},
-			])
+		const cardMsg: ClineMessage = {
+			ts: Date.now(),
+			type: message.type,
+			say: message.say,
+			text: message.text,
+			partial: false,
 		}
+
+		if (controller.task) {
+			controller.task.messageStateHandler.addMessages([cardMsg])
+		}
+		await pushMessageToWebview(cardMsg)
 		await controller.postStateToWebview()
 	} catch (e) {
-		Logger.warn(`[PaciorInlineEditor] Failed to post to chat UI: ${e}`)
+		Logger.warn(`[PaciorInlineEditor] Failed to post inline card message: ${e}`)
 	}
 }
 
@@ -51,10 +169,11 @@ async function postInlineEditToChatUi(message: { type: "say"; say: "info" | "tex
  * Provides sub-1,000 token direct inline code editing directly inside the active editor:
  * 1. Takes the user's active editor selection (or active line) + minimal surrounding context.
  * 2. Prompts user via a quick floating input box for their edit instruction.
- * 3. Shows execution progress, errors, and model fallbacks transparently in the chat UI.
- * 4. Streams request to TrueForge with dynamic model shift resilience.
- * 5. Shows side-by-side Diff Review modal with Accept / Reject.
- * 6. On Accept: swaps code and writes changes. On Reject: discards preview with document untouched.
+ * 3. Opens a NEW CHAT interface in the sidebar showing realtime streaming thoughts & text.
+ * 4. Transparently renders model fallbacks and error cards inline in the chat.
+ * 5. Streams request to TrueForge with dynamic model shift resilience.
+ * 6. Shows side-by-side Diff Review modal with Accept / Reject.
+ * 7. On Accept: swaps code and writes changes. On Reject: discards preview with document untouched.
  */
 export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string; apiKey?: string }): Promise<void> {
 	const editor = vscode.window.activeTextEditor
@@ -91,12 +210,9 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 	// Focus/reveal sidebar so user can see progress and transparent notifications in chat UI
 	vscode.commands.executeCommand("claude-dev.SidebarProvider.focus").then(undefined, () => {})
 
-	// Post initial process message to chat UI
-	await postInlineEditToChatUi({
-		type: "say",
-		say: "info",
-		text: `✏️ **Pacior Inline Edit**: \`${filePath}:${targetRange.start.line + 1}\`\n> ${instruction.trim()}`,
-	})
+	// Start a fresh chat interface for this inline edit task
+	const initialPromptText = `✏️ **Pacior Inline Edit**: \`${filePath}:${targetRange.start.line + 1}\`\n\n> ${instruction.trim()}`
+	const chatSession = await startInlineChatSession(initialPromptText)
 
 	// Capture surrounding lines (up to 15 lines before and after) to maintain context without token bloat
 	const startLine = Math.max(0, targetRange.start.line - 15)
@@ -174,9 +290,20 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 						let replacement = ""
 						for await (const ev of stream) {
 							if (token.isCancellationRequested) break
+
+							// Realtime streaming: thinking / reasoning deltas
+							const deltaReasoning = (ev as any).reasoningContent ?? (ev as any).reasoning_content
+							if (deltaReasoning) {
+								await streamReasoningDelta(chatSession, String(deltaReasoning))
+							}
+
+							// Realtime streaming: replacement text deltas
 							if (ev.type === "model.message.delta" && ev.content) {
 								replacement += ev.content
+								await completeReasoningStream(chatSession)
+								await streamTextDelta(chatSession, ev.content)
 							} else if (ev.type === "turn.done") {
+								await completeReasoningStream(chatSession)
 								if (ev.state.status === "error") {
 									const errDetail =
 										(ev.state as { error?: { message?: string } }).error?.message ??
@@ -189,6 +316,8 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 								}
 							}
 						}
+
+						await completeTextStream(chatSession)
 
 						// Preserve session in TrueForge daemon for full transparency & inspection in history
 						Logger.log(`[executePaciorInlineEdit] Preserved inline session in TrueForge daemon: ${session.id}`)
@@ -209,7 +338,7 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 						}
 						cleanedReplacement = cleaned
 
-						await postInlineEditToChatUi({
+						await postInlineCardMessage(chatSession, {
 							type: "say",
 							say: "info",
 							text: `⚡ **Inline Edit Generated**: Proposed diff ready for \`${filePath}\`. Reviewing changes in editor...`,
@@ -222,7 +351,7 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 						// Find next candidate for resilient fallback
 						const nextCandidate = sortedModels.find((m) => !triedModels.has(m.name))
 						if (nextCandidate) {
-							await postInlineEditToChatUi({
+							await postInlineCardMessage(chatSession, {
 								type: "say",
 								say: "info",
 								text: `⚠️ **Model Shift**: Inline edit model error (${lastErrorMsg}). Automatically shifted to available fallback model "${nextCandidate.name}".`,
@@ -232,7 +361,7 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 				}
 
 				if (!cleanedReplacement && cleanedReplacement !== "" && lastErrorMsg) {
-					await postInlineEditToChatUi({
+					await postInlineCardMessage(chatSession, {
 						type: "say",
 						say: "error",
 						text: `❌ **Pacior Inline Edit Failed**: ${lastErrorMsg}`,
@@ -242,12 +371,18 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 			} catch (err: unknown) {
 				const msg = err instanceof Error ? err.message : String(err)
 				Logger.error("[executePaciorInlineEdit] error:", msg)
-				await postInlineEditToChatUi({
+				await postInlineCardMessage(chatSession, {
 					type: "say",
 					say: "error",
 					text: `❌ **Pacior Inline Edit Error**: ${msg}`,
 				})
 				vscode.window.showErrorMessage(`Pacior Inline Edit Error: ${msg}`)
+			} finally {
+				// Mark turn as idle/completed in the turn state tracker
+				if (chatSession?.controller?.turnStateTracker?.set) {
+					chatSession.controller.turnStateTracker.set("idle")
+					await chatSession.controller.postStateToWebview()
+				}
 			}
 		},
 	)
@@ -313,7 +448,7 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 			edit.replace(document.uri, targetRange, cleanedReplacement)
 			const success = await vscode.workspace.applyEdit(edit)
 			if (success) {
-				await postInlineEditToChatUi({
+				await postInlineCardMessage(chatSession, {
 					type: "say",
 					say: "info",
 					text: `✓ **Inline Edit Accepted**: Applied changes to \`${filePath}\`.`,
@@ -322,7 +457,7 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 				vscode.window.showErrorMessage("Pacior Inline Edit: Failed to apply changes.")
 			}
 		} else {
-			await postInlineEditToChatUi({
+			await postInlineCardMessage(chatSession, {
 				type: "say",
 				say: "info",
 				text: `✕ **Inline Edit Rejected**: Discarded changes to \`${filePath}\`.`,

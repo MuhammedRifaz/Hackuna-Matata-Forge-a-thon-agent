@@ -106,7 +106,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				model: { name: preferredModel },
 				instructions: "You are Pacior, an autonomous software engineering agent for VS Code. Follow instructions carefully, write clean minimal code, and verify with tests.",
 				config: {
-					iteration_limit: 25,
+					iteration_limit: 80,
+					iterationLimit: 80,
 					sandbox: { enabled: false, file_downloads: false },
 					dynamic_sub_agents: { enabled: true },
 					context_management: {
