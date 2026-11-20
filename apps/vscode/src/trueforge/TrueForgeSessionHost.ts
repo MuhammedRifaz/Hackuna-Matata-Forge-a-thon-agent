@@ -499,8 +499,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				let promptText = input.prompt
 
 				// Auto Context Assembly Optimization:
-				// Only assemble on Turn 1 (initial request). Keep strictly within 900-token budget.
-				if (!session.lastTurnId) {
+				// Only assemble on Turn 1 (initial request) for Task B / Agent tasks.
+				// NEVER assemble for Inline Edit (which is strictly targeted to the active editor selection).
+				const isInlineEdit = promptText.includes("Pacior Inline Edit") || promptText.includes("Inline Edit")
+				if (!session.lastTurnId && !isInlineEdit) {
 					try {
 						const { PaciorContextEngine } = await import("@/context/PaciorContextEngine")
 						const engine = PaciorContextEngine.getInstance()

@@ -75,17 +75,18 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 	await controller.clearTask()
 	await sendChatButtonClickedEvent()
 
-	// 5. Build prompt formatted for precision inline editing
+	// 5. Build clean, minimal prompt for inline editing
 	const prompt = [
 		`✏️ **Pacior Inline Edit**: \`${filePath}:${targetRange.start.line + 1}\``,
 		`> **Instruction**: ${instruction.trim()}`,
 		"",
+		`Target: \`${filePath}\` (Lines ${targetRange.start.line + 1} to ${targetRange.end.line + 1})`,
 		"```" + languageId,
 		selectedCode,
 		"```",
 		"",
-		`Target Range: Lines ${targetRange.start.line + 1} to ${targetRange.end.line + 1} of \`${filePath}\`.`,
-		`Apply the requested edit to \`${filePath}\` using the \`editor\` tool and verify the code syntax.`
+		`1. Stream your concise explanation of the change in text first so the user sees the real-time streaming response.`,
+		`2. Then immediately apply the edit to \`${filePath}\` using the \`editor\` tool.`
 	].join("\n")
 
 	// 6. Launch a real task in the controller: mounts a brand new chat interface in the UI,
