@@ -15,11 +15,13 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM 2. Configure Outbound Network Permissions
-echo [INFO] Enabling outbound URL access for TrueForge sandbox and tools...
+REM 2. Configure Outbound Network Permissions and Disable SSRF Loopback Guard
+echo [INFO] Enabling outbound URL access and local loopback MCP access for TrueForge...
 set ALLOW_OUTBOUND=true
 set TRUEFORGE_ALLOW_OUTBOUND=true
 set TRUEFORGE_SANDBOX_ALLOW_OUTBOUND=true
+set NETWORK_POLICY_ENABLED=false
+set OUTBOUND_URL_ALLOWED_HOSTS=["127.0.0.1","localhost","*"]
 
 REM 3. Check if server is already running on port 8790
 curl -s -m 2 http://localhost:8790 >nul 2>nul

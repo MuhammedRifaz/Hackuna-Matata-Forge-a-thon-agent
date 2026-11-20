@@ -284,7 +284,17 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			latest.spec.config = {
 				...latest.spec.config,
 				iterationLimit: 25,
-				sandbox: { enabled: false, fileDownloads: false },
+				sandbox: {
+					enabled: false,
+					fileDownloads: false,
+					file_downloads: false,
+					allowOutbound: true,
+					allow_outbound: true,
+				},
+				network: {
+					allowOutbound: true,
+					allow_outbound: true,
+				},
 				askUserQuestions: { enabled: false },
 				contextManagement: {
 					compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
@@ -440,7 +450,17 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				latest.spec.config = {
 					...latest.spec.config,
 					iterationLimit: 25,
-					sandbox: { enabled: false, fileDownloads: false },
+					sandbox: {
+						enabled: false,
+						fileDownloads: false,
+						file_downloads: false,
+						allowOutbound: true,
+						allow_outbound: true,
+					},
+					network: {
+						allowOutbound: true,
+						allow_outbound: true,
+					},
 					askUserQuestions: { enabled: false },
 					contextManagement: {
 						compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },

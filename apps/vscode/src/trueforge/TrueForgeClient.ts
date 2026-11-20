@@ -243,6 +243,12 @@ export class TrueForgeClient {
 						enabled: false,
 						file_downloads: false,
 						fileDownloads: false,
+						allow_outbound: true,
+						allowOutbound: true,
+					},
+					network: {
+						allow_outbound: true,
+						allowOutbound: true,
 					},
 					generative_ui: { enabled: false },
 					generativeUi: { enabled: false },
