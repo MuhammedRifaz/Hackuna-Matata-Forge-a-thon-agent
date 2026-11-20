@@ -1016,10 +1016,28 @@ export const ChatRowContent = memo(
 					case "info": {
 						const rawInfo = message.text || ""
 						if (
+							rawInfo.includes("Model Request Error") ||
+							rawInfo.includes("Model Error") ||
+							rawInfo.startsWith("❌")
+						) {
+							return (
+								<div className="border border-rose-500/80 bg-rose-950/40 text-rose-200 rounded-lg p-3 my-1 shadow-md flex items-start gap-2.5 select-text">
+									<span className="text-rose-400 text-lg leading-none mt-0.5">❌</span>
+									<div className="flex-1 min-w-0">
+										<div className="font-semibold text-rose-300 text-xs mb-1">
+											TrueForge Model Failure Detected (Criterion B3)
+										</div>
+										<MarkdownRow markdown={rawInfo} showCursor={false} />
+									</div>
+								</div>
+							)
+						}
+						if (
 							rawInfo.includes("Model Shift") ||
 							rawInfo.includes("fallback model") ||
 							rawInfo.includes("Primary model") ||
-							rawInfo.includes("failed over")
+							rawInfo.includes("failed over") ||
+							rawInfo.includes("Model Fallback")
 						) {
 							return (
 								<div className="border border-amber-500/80 bg-amber-950/35 text-amber-200 rounded-lg p-3 my-1 shadow-md flex items-start gap-2.5 select-text">

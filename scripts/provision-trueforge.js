@@ -72,13 +72,10 @@ async function main() {
 
 		if (existingPacior) {
 			console.log(`[TrueForge Provisioner] Synchronizing Pacior agent (id: ${existingPacior.id})...`);
-			// Always use high-reliability Gemini model unless a non-fake user model is configured
-			const activeModel =
-				existingPacior.manifest?.model?.name &&
-				!existingPacior.manifest.model.name.toLowerCase().includes("fake") &&
-				models.some((m) => m.name.toLowerCase() === existingPacior.manifest.model.name.toLowerCase())
-					? existingPacior.manifest.model
-					: { name: preferredModel.name };
+			// Preserve whatever model the user configured in TrueForge (including fake/test models for Task C resilience)
+			const activeModel = existingPacior.manifest?.model?.name
+				? existingPacior.manifest.model
+				: { name: preferredModel.name };
 			paciorManifest.model = activeModel;
 			await fetch(`${base}/agents/${existingPacior.id}`, {
 				method: "PUT",

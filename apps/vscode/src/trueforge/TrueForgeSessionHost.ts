@@ -318,7 +318,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 							file_downloads: false,
 							allowOutbound: true,
 							allow_outbound: true,
-						},
+						} as any,
 						network: {
 							allowOutbound: true,
 							allow_outbound: true,
@@ -338,8 +338,15 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 			}
 
-			// Emit EXACTLY ONE notice message so the UI renders a single yellow card with zero duplicates
-			const shiftMessage = `⚠️ **Automatic Model Fallback (Criterion B3)**: Switched active model to "${chosenCandidate.name}" (${failedReason ? failedReason.slice(0, 80) : "model error"}).`
+			// Emit visible error card followed by fallback notice card so the user sees both clearly
+			const failedModel = session.modelId === chosenCandidate.name ? (Array.from(session.failedModelIds)[0] || "configured model") : session.modelId
+			const errorMsg = `❌ **Model Request Error**: Model "${failedModel}" failed (${failedReason ? failedReason.slice(0, 100) : "model error"}).`
+			this.emitAgentEvent(session.clineSessionId, {
+				type: "notice",
+				message: errorMsg,
+			})
+
+			const shiftMessage = `⚠️ **Automatic Model Fallback (Criterion B3)**: Primary model "${failedModel}" was unreachable/failed. Automatically failed over to configured model "${chosenCandidate.name}". Workspace unchanged.`
 			this.emitAgentEvent(session.clineSessionId, {
 				type: "notice",
 				message: shiftMessage,
@@ -378,7 +385,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		try {
 			const mcpUrl = await this.mcpServer.ensureStarted()
 			await this.client.ensureWorkspaceMcpServer(mcpUrl)
-			const initialPrompt = normalized.config.prompt || ""
+			const initialPrompt = (normalized.config as any).prompt || ""
 			const isInlineEdit = initialPrompt.includes("Pacior Inline Edit") || initialPrompt.includes("Inline Edit")
 			const modelIdFromConfig = normalized.config.modelId?.trim()
 			const resolved = await this.client.resolveAgentSpec({
@@ -388,16 +395,20 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				preferredModelId: modelIdFromConfig && modelIdFromConfig !== "trueforge" ? modelIdFromConfig : undefined,
 				isInlineEdit,
 			})
-			let tfSession: TrueForgeApi.Session
+			let tfSession: any
 			let fallbackNotice: string | undefined
+			let initialErrorNotice: string | undefined
 			try {
 				tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
 			} catch (createErr) {
-				Logger.warn(`[TrueForgeSessionHost] Session creation with model "${resolved.spec.model?.name}" failed: ${createErr}. Attempting Gemini failover...`)
+				const failedModelName = resolved.spec.model?.name || "configured model"
+				const errMsg = createErr instanceof Error ? createErr.message : String(createErr)
+				Logger.warn(`[TrueForgeSessionHost] Session creation with model "${failedModelName}" failed: ${errMsg}. Attempting Gemini failover...`)
 				const availModels = await this.client.listModels().catch(() => [])
 				const fallback = availModels.find((m) => m.name !== resolved.spec.model?.name && m.name.toLowerCase().includes("gemini")) || availModels[0]
 				if (!fallback) throw createErr
-				fallbackNotice = `⚠️ **Automatic Model Fallback (Criterion B3)**: Primary model was unavailable. Automatically failed over to configured model "${fallback.name}".`
+				initialErrorNotice = `❌ **Model Request Error**: Model "${failedModelName}" failed to initialize (${errMsg.slice(0, 100)}).`
+				fallbackNotice = `⚠️ **Automatic Model Fallback (Criterion B3)**: Primary model "${failedModelName}" was unavailable. Automatically failed over to configured model "${fallback.name}". Workspace unchanged.`
 				resolved.spec.model = { name: fallback.name }
 				tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
 			}
@@ -422,13 +433,21 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				failedModelIds: new Set<string>(),
 			})
 
+			if (initialErrorNotice) {
+				setTimeout(() => {
+					this.emitAgentEvent(clineSessionId, {
+						type: "notice",
+						message: initialErrorNotice,
+					})
+				}, 100)
+			}
 			if (fallbackNotice) {
 				setTimeout(() => {
 					this.emitAgentEvent(clineSessionId, {
 						type: "notice",
 						message: fallbackNotice,
 					})
-				}, 200)
+				}, 250)
 			}
 
 			Logger.log(
@@ -508,7 +527,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						file_downloads: false,
 						allowOutbound: true,
 						allow_outbound: true,
-					},
+					} as any,
 					network: {
 						allowOutbound: true,
 						allow_outbound: true,
@@ -1001,7 +1020,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								try {
 									const { PaciorDiffReviewManager } = await import("./PaciorDiffReviewManager")
 									PaciorDiffReviewManager.getInstance().showReview()
-									if (isInlineEdit) {
+									const isInline = (input.prompt || "").includes("Inline Edit")
+									if (isInline) {
 										const vscode = await import("vscode")
 										vscode.window
 											.showInformationMessage("Pacior Inline Edit applied. Accept or Reject changes?", "Accept", "Reject")

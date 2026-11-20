@@ -68,7 +68,7 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 	// 3. Ensure mode is set to 'act' so it executes directly without requiring an upfront plan phase
 	try {
 		const { StateManager } = await import("@/core/storage/StateManager")
-		StateManager.get().setGlobalSettingsKey("mode", "act")
+		StateManager.get().setGlobalState("mode", "act")
 	} catch {}
 
 	// 4. Clear any stale task and switch webview immediately to Chat tab

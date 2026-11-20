@@ -201,21 +201,22 @@ export class TrueForgeClient {
 			const qNorm = norm(q)
 			validPreferred = availModels.find((m) => {
 				const name = m.name.toLowerCase()
-				const mId = (m.model_id ?? "").toLowerCase()
+				const mId = ((m as any).model_id ?? "").toLowerCase()
 				if (name === q || mId === q) return true
 				if (norm(name) === qNorm || norm(mId) === qNorm) return true
 				return false
 			})
 		}
 
-		if (validPreferred && !validPreferred.name.toLowerCase().includes("fake")) {
+		if (baseManifest.model?.name) {
+			// Respect user-configured model from TrueForge settings (crucial for Task C resilience / invalid model testing)
+			Logger.log(`[TrueForgeClient] Using configured model from agent settings: ${baseManifest.model.name}`)
+		} else if (validPreferred) {
 			baseManifest.model = { name: validPreferred.name }
 		} else if (geminiModel) {
 			baseManifest.model = { name: geminiModel.name }
-		} else if (baseManifest.model?.name && availModels.some((m) => m.name.toLowerCase() === baseManifest.model?.name?.toLowerCase())) {
-			// keep existing if valid
 		} else {
-			const fallback = availModels.find((m) => !m.name.toLowerCase().includes("fake")) || availModels[0]
+			const fallback = availModels[0]
 			if (fallback) {
 				baseManifest.model = { name: fallback.name }
 			}
@@ -294,11 +295,11 @@ export class TrueForgeClient {
 
 		return {
 			name: resolvedName,
-			spec: {
+			spec: ({
 				...baseManifest,
 				instructions: isInline ? inlineInstructions : workspaceContext,
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
-				mcp_servers: [...existingMcpServers, workspaceMcpEntry] as any,
+				mcp_servers: [...existingMcpServers, workspaceMcpEntry],
 				config: {
 					...baseManifest.config,
 					iteration_limit: 25,
@@ -335,7 +336,7 @@ export class TrueForgeClient {
 						largeToolResponse: { enabled: true },
 					},
 				} as any,
-			},
+			} as any),
 		}
 	}
 
