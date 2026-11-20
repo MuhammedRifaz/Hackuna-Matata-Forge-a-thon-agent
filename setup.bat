@@ -125,6 +125,7 @@ if %errorlevel% neq 0 (
     start "TrueForge Agent Harness" cmd /k "set ALLOW_OUTBOUND=true&& set TRUEFORGE_ALLOW_OUTBOUND=true&& set TRUEFORGE_SANDBOX_ALLOW_OUTBOUND=true&& set NETWORK_POLICY_ENABLED=false&& npx @truefoundry/trueforge"
     echo [INFO] Waiting for TrueForge server to boot...
     ping -n 6 127.0.0.1 >nul
+    node "%~dp0scripts\patch-gemini-signature.js"
 ) else (
     echo [SUCCESS] TrueForge harness is already running on http://localhost:8790.
 )

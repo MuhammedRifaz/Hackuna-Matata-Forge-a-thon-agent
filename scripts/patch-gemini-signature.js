@@ -46,12 +46,16 @@ function patchVercelAILLM(filePath) {
 		let content = fs.readFileSync(filePath, "utf8");
 		let modified = false;
 
-		// 1. Default thoughtSignature to sentinel if absent so Google Gemini doesn't reject tool replay
+		// 1. Only default thoughtSignature to sentinel for Google/Gemini models to avoid breaking OpenRouter/OpenAI/Claude
 		const oldThoughtSig = 'const thoughtSignature = isPlainObject(rawProviderFields) && typeof rawProviderFields["thought_signature"] === "string" ? rawProviderFields["thought_signature"] : void 0;';
-		const newThoughtSig = 'const thoughtSignature = isPlainObject(rawProviderFields) && typeof rawProviderFields["thought_signature"] === "string" ? rawProviderFields["thought_signature"] : "skip_thought_signature_validator";';
+		const oldPatchedThoughtSig = 'const thoughtSignature = isPlainObject(rawProviderFields) && typeof rawProviderFields["thought_signature"] === "string" ? rawProviderFields["thought_signature"] : "skip_thought_signature_validator";';
+		const safeThoughtSig = 'const isGoogleProvider = (typeof provider === "string" && (provider.includes("google") || provider.includes("gemini"))) || (typeof providerName === "string" && providerName.includes("gemini"));\n      const thoughtSignature = isPlainObject(rawProviderFields) && typeof rawProviderFields["thought_signature"] === "string" ? rawProviderFields["thought_signature"] : (isGoogleProvider ? "skip_thought_signature_validator" : void 0);';
 
-		if (content.includes(oldThoughtSig)) {
-			content = content.replace(oldThoughtSig, newThoughtSig);
+		if (content.includes(oldPatchedThoughtSig)) {
+			content = content.replace(oldPatchedThoughtSig, safeThoughtSig);
+			modified = true;
+		} else if (content.includes(oldThoughtSig)) {
+			content = content.replace(oldThoughtSig, safeThoughtSig);
 			modified = true;
 		}
 
@@ -66,8 +70,8 @@ function patchVercelAILLM(filePath) {
 		if (modified) {
 			fs.writeFileSync(filePath, content, "utf8");
 			console.log(`[Gemini Patch] Successfully patched VercelAILLM: ${filePath}`);
-		} else if (content.includes('skip_thought_signature_validator')) {
-			console.log(`[Gemini Patch] Already patched VercelAILLM: ${filePath}`);
+		} else if (content.includes('isGoogleProvider')) {
+			console.log(`[Gemini Patch] Already safely patched VercelAILLM: ${filePath}`);
 		}
 	} catch (err) {
 		console.warn(`[Gemini Patch] Warning patching ${filePath}:`, err.message);

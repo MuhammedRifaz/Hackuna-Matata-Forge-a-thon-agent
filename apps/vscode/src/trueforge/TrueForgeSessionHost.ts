@@ -325,7 +325,11 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					largeToolResponse: { enabled: true },
 				},
 			}
-			await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
+			const targetAgent = await this.client.findAgentByName(session.agentName || "pacior")
+			if (targetAgent) {
+				await this.client.updateAgentManifest(targetAgent.id, latest.spec).catch(() => {})
+			}
+			await this.client.updateSessionAgent(session.tfSessionId, latest.spec).catch(() => {})
 			session.modelId = candidate.name
 
 			// Emit EXACTLY ONE notice message so the UI renders a single yellow card with zero duplicates
@@ -368,22 +372,14 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		try {
 			const mcpUrl = await this.mcpServer.ensureStarted()
 			await this.client.ensureWorkspaceMcpServer(mcpUrl)
+			const modelIdFromConfig = normalized.config.modelId?.trim()
 			const resolved = await this.client.resolveAgentSpec({
 				cwd,
 				mode,
 				requireApprovalForTools: this.getEffectiveApprovalTools(),
+				preferredModelId: modelIdFromConfig && modelIdFromConfig !== "trueforge" ? modelIdFromConfig : undefined,
 			})
-			const tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
-
-			// Ensure preferred working model (e.g. Gemini) is prioritized from the start
-			try {
-				const availModels = await this.client.listModels()
-				const preferred = availModels.find((m: { name: string }) => m.name.toLowerCase().includes("gemini"))
-				if (preferred && !resolved.spec.model?.name?.toLowerCase().includes("gemini")) {
-					resolved.spec.model = { name: preferred.name }
-					await this.client.updateSessionAgent(tfSession.id, resolved.spec)
-				}
-			} catch {}
+			const tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`, resolved.name)
 
 			const modelId = resolved.spec.model?.name ?? normalized.config.modelId ?? "trueforge"
 			const now = new Date().toISOString()

@@ -72,12 +72,15 @@ async function main() {
 
 		if (existingPacior) {
 			console.log(`[TrueForge Provisioner] Synchronizing Pacior agent (id: ${existingPacior.id})...`);
+			// Preserve user-configured model if already set
+			const activeModel = existingPacior.manifest?.model?.name ? existingPacior.manifest.model : { name: preferredModel.name };
+			paciorManifest.model = activeModel;
 			await fetch(`${base}/agents/${existingPacior.id}`, {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ manifest: paciorManifest }),
 			});
-			console.log("[TrueForge Provisioner] Successfully synchronized Pacior agent configuration.");
+			console.log(`[TrueForge Provisioner] Successfully synchronized Pacior agent configuration (model: ${activeModel.name}).`);
 		} else {
 			console.log("[TrueForge Provisioner] Registering new Pacior agent in TrueForge...");
 			await fetch(`${base}/agents`, {

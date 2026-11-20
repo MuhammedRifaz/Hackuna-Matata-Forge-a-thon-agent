@@ -161,6 +161,7 @@ export class TrueForgeClient {
 		mcpServerName?: string
 		requireApprovalForTools?: TrueForgeApi.McpServerApprovalToolSelector[]
 		preferredAgentName?: string
+		preferredModelId?: string
 	}): Promise<ResolvedTrueForgeAgent> {
 		const targetName = options.preferredAgentName?.trim() || this.agentName
 		const agents = await this.listAgents()
@@ -189,14 +190,9 @@ export class TrueForgeClient {
 			}
 		}
 
-		// Ensure high-reliability model (Gemini) is prioritized over rate-limited free models on fresh installs
-		try {
-			const modelsResp = await this.sdk.models.list({ timeoutInSeconds: 5, maxRetries: 0 })
-			const geminiModel = modelsResp.data?.find((m) => m.name.toLowerCase().includes("gemini"))
-			if (geminiModel && !baseManifest.model?.name?.toLowerCase().includes("gemini")) {
-				baseManifest.model = { name: geminiModel.name }
-			}
-		} catch {}
+		if (options.preferredModelId?.trim()) {
+			baseManifest.model = { name: options.preferredModelId.trim() }
+		}
 
 		const mcpServerName = options.mcpServerName ?? VSCODE_MCP_SERVER_NAME
 		const existingMcpServers = (baseManifest.mcpServers ?? (baseManifest as any).mcp_servers ?? []).filter((srv: { name: string }) => srv.name !== mcpServerName)
@@ -290,17 +286,52 @@ export class TrueForgeClient {
 		}
 	}
 
-	async createSession(agentSpec: TrueForgeApi.AgentSpec, title?: string): Promise<TrueForgeApi.Session> {
-		const res = await this.sdk.sessions.create(
-			{
-				agent: { spec: agentSpec },
-			},
-			{ timeoutInSeconds: 15, maxRetries: 0 },
-		)
-		if (title) {
-			await this.sdk.sessions.update(res.data.id, { title }, { timeoutInSeconds: 10, maxRetries: 0 }).catch(() => {})
+	async findAgentByName(name: string): Promise<TrueForgeApi.Agent | undefined> {
+		const agents = await this.listAgents().catch(() => [])
+		return agents.find((a) => a.name.toLowerCase() === name.toLowerCase())
+	}
+
+	async updateAgentManifest(agentId: string, manifest: TrueForgeApi.AgentSpec): Promise<void> {
+		await this.sdk.agents.update(agentId, { manifest }, { timeoutInSeconds: 10, maxRetries: 0 })
+	}
+
+	async createSession(agentSpec: TrueForgeApi.AgentSpec, title?: string, agentName?: string): Promise<TrueForgeApi.Session> {
+		const targetAgentName = agentName?.trim() || this.agentName
+		let sessionData: TrueForgeApi.Session | undefined
+
+		// Attempt named registry binding first so TrueForge dashboard Displays "pacior" under Sessions
+		if (targetAgentName) {
+			try {
+				const existingAgent = await this.findAgentByName(targetAgentName)
+				if (existingAgent) {
+					await this.updateAgentManifest(existingAgent.id, agentSpec).catch(() => {})
+				}
+				const res = await this.sdk.sessions.create(
+					{
+						agent: { name: targetAgentName },
+					},
+					{ timeoutInSeconds: 15, maxRetries: 0 },
+				)
+				sessionData = res.data
+			} catch (err) {
+				Logger.warn(`[TrueForgeClient] Could not create named session for "${targetAgentName}", falling back to inline: ${err}`)
+			}
 		}
-		return res.data
+
+		if (!sessionData) {
+			const res = await this.sdk.sessions.create(
+				{
+					agent: { spec: agentSpec },
+				},
+				{ timeoutInSeconds: 15, maxRetries: 0 },
+			)
+			sessionData = res.data
+		}
+
+		if (title && sessionData) {
+			await this.sdk.sessions.update(sessionData.id, { title }, { timeoutInSeconds: 10, maxRetries: 0 }).catch(() => {})
+		}
+		return sessionData
 	}
 
 	async updateSessionAgent(sessionId: string, agentSpec: TrueForgeApi.AgentSpec): Promise<void> {
