@@ -108,17 +108,17 @@ TrueForge runs locally as an independent daemon on port `8790`. **Crucial**: Out
 
 **Linux / macOS (Bash / Zsh):**
 ```bash
-NETWORK_POLICY_ENABLED=false OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","*"]' ALLOW_OUTBOUND=true npx @truefoundry/trueforge
+NETWORK_POLICY_ENABLED=false ALLOW_OUTBOUND=true npx @truefoundry/trueforge
 ```
 
 **Windows (Command Prompt / CMD):**
 ```cmd
-set NETWORK_POLICY_ENABLED=false&& set OUTBOUND_URL_ALLOWED_HOSTS=["127.0.0.1","localhost","*"]&& set ALLOW_OUTBOUND=true&& npx @truefoundry/trueforge
+set NETWORK_POLICY_ENABLED=false&& set ALLOW_OUTBOUND=true&& npx @truefoundry/trueforge
 ```
 
 **Windows (PowerShell):**
 ```powershell
-$env:NETWORK_POLICY_ENABLED="false"; $env:OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","*"]'; $env:ALLOW_OUTBOUND="true"; npx @truefoundry/trueforge
+$env:NETWORK_POLICY_ENABLED="false"; $env:ALLOW_OUTBOUND="true"; npx @truefoundry/trueforge
 ```
 *(Or simply double-click `run-trueforge.bat` on Windows!)*
 
