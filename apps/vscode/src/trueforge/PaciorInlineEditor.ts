@@ -80,13 +80,15 @@ export async function executePaciorInlineEdit(clientConfig?: { baseUrl?: string;
 		`✏️ **Pacior Inline Edit**: \`${filePath}:${targetRange.start.line + 1}\``,
 		`> **Instruction**: ${instruction.trim()}`,
 		"",
-		`Target: \`${filePath}\` (Lines ${targetRange.start.line + 1} to ${targetRange.end.line + 1})`,
+		`Target snippet from \`${filePath}\` (Lines ${targetRange.start.line + 1} to ${targetRange.end.line + 1}):`,
 		"```" + languageId,
 		selectedCode,
 		"```",
 		"",
-		`1. Stream your concise explanation of the change in text first so the user sees the real-time streaming response.`,
-		`2. Then immediately apply the edit to \`${filePath}\` using the \`editor\` tool.`
+		`STRICT INLINE EDIT INSTRUCTIONS:`,
+		`1. Stream a 1-sentence explanation of the modification.`,
+		`2. Directly replace the targeted snippet in \`${filePath}\` using the \`editor\` tool.`,
+		`3. Do NOT search files, read other files, or run tests. Conclude immediately.`
 	].join("\n")
 
 	// 6. Launch a real task in the controller: mounts a brand new chat interface in the UI,

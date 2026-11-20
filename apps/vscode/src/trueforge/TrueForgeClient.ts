@@ -162,6 +162,7 @@ export class TrueForgeClient {
 		requireApprovalForTools?: TrueForgeApi.McpServerApprovalToolSelector[]
 		preferredAgentName?: string
 		preferredModelId?: string
+		isInlineEdit?: boolean
 	}): Promise<ResolvedTrueForgeAgent> {
 		const targetName = options.preferredAgentName?.trim() || this.agentName
 		const agents = await this.listAgents()
@@ -191,6 +192,7 @@ export class TrueForgeClient {
 		}
 
 		const availModels = await this.listModels().catch(() => [])
+		const geminiModel = availModels.find((m) => m.name.toLowerCase().includes("gemini"))
 		const pref = options.preferredModelId?.trim()
 		let validPreferred: TrueForgeApi.Model | undefined
 		if (pref) {
@@ -200,38 +202,54 @@ export class TrueForgeClient {
 			validPreferred = availModels.find((m) => {
 				const name = m.name.toLowerCase()
 				const mId = (m.model_id ?? "").toLowerCase()
-				const prov = (m.provider?.name ?? "").toLowerCase()
-				if (name === q || mId === q || `${prov}/${mId}` === q) return true
+				if (name === q || mId === q) return true
 				if (norm(name) === qNorm || norm(mId) === qNorm) return true
-				if (qNorm.length > 4 && (norm(name).includes(qNorm) || norm(mId).includes(qNorm) || qNorm.includes(norm(name)))) return true
 				return false
 			})
 		}
 
-		if (validPreferred) {
+		if (validPreferred && !validPreferred.name.toLowerCase().includes("fake")) {
 			baseManifest.model = { name: validPreferred.name }
-		} else if (!baseManifest.model?.name || !availModels.some((m) => m.name.toLowerCase() === baseManifest.model?.name?.toLowerCase())) {
-			const fallback = availModels[0]
+		} else if (geminiModel) {
+			baseManifest.model = { name: geminiModel.name }
+		} else if (baseManifest.model?.name && availModels.some((m) => m.name.toLowerCase() === baseManifest.model?.name?.toLowerCase())) {
+			// keep existing if valid
+		} else {
+			const fallback = availModels.find((m) => !m.name.toLowerCase().includes("fake")) || availModels[0]
 			if (fallback) {
 				baseManifest.model = { name: fallback.name }
 			}
 		}
 
+		const isInline = options.isInlineEdit === true
 		const mcpServerName = options.mcpServerName ?? VSCODE_MCP_SERVER_NAME
 		const existingMcpServers = (baseManifest.mcpServers ?? (baseManifest as any).mcp_servers ?? []).filter((srv: { name: string }) => srv.name !== mcpServerName)
 		const approvalList = options.requireApprovalForTools ?? []
-		// Deferred tool loading: preload only the 4 essential core tools to cut tool definition overhead (~50% savings)
-		// Infrequently used tools (list_files, write_to_file, assemble_context, finish, complete_task) stay deferred on demand.
-		const workspaceMcpEntry: any = {
-			name: mcpServerName,
-			preload: false,
-			preload_tools: ["read_files", "search_files", "editor", "run_commands"],
-			preloadTools: ["read_files", "search_files", "editor", "run_commands"],
-			enableTools: ["@all"],
-			enable_tools: ["@all"],
-			requireApprovalForTools: approvalList,
-			require_approval_for_tools: approvalList,
-		}
+
+		// For Inline Edit: ONLY allow editor tool. Strip testing, reading other files, and searching.
+		const workspaceMcpEntry: any = isInline
+			? {
+					name: mcpServerName,
+					preload: true,
+					preload_tools: ["editor"],
+					preloadTools: ["editor"],
+					enableTools: ["editor"],
+					enable_tools: ["editor"],
+					disableTools: ["run_commands", "search_files", "read_files", "list_files", "write_to_file", "assemble_context", "finish", "complete_task"],
+					disable_tools: ["run_commands", "search_files", "read_files", "list_files", "write_to_file", "assemble_context", "finish", "complete_task"],
+					requireApprovalForTools: [],
+					require_approval_for_tools: [],
+			  }
+			: {
+					name: mcpServerName,
+					preload: false,
+					preload_tools: ["read_files", "search_files", "editor", "run_commands"],
+					preloadTools: ["read_files", "search_files", "editor", "run_commands"],
+					enableTools: ["@all"],
+					enable_tools: ["@all"],
+					requireApprovalForTools: approvalList,
+					require_approval_for_tools: approvalList,
+			  }
 
 		const modeGuidance =
 			options.mode === "plan"
@@ -242,6 +260,18 @@ export class TrueForgeClient {
 		const platformInfo = isWin
 			? "ENV: Windows (cmd.exe/PowerShell). Commands run inside the workspace root automatically (no `cd` needed). Use `python -m pytest ...` for Python tests."
 			: "ENV: POSIX (bash/sh). Commands run inside the workspace root automatically."
+
+		const inlineInstructions = [
+			"You are Pacior, a surgical inline code editor in VS Code.",
+			`Workspace Root: ${options.cwd}`,
+			platformInfo,
+			"MODE: INLINE EDIT — Apply changes directly to the targeted file using the `editor` tool.",
+			"",
+			"STRICT INLINE EDIT RULES:",
+			"1. You are in INLINE EDIT mode for a specific code selection. Do NOT search files, read other files, or run tests.",
+			"2. You ONLY have the `editor` tool. Use `editor` immediately to replace the selected snippet with the updated code.",
+			"3. Stream a concise 1-sentence explanation of what was changed, then conclude immediately.",
+		].join("\n")
 
 		const workspaceContext = [
 			"You are Pacior, a concise, high-precision software engineering agent in VS Code.",
@@ -266,7 +296,7 @@ export class TrueForgeClient {
 			name: resolvedName,
 			spec: {
 				...baseManifest,
-				instructions: workspaceContext,
+				instructions: isInline ? inlineInstructions : workspaceContext,
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
 				mcp_servers: [...existingMcpServers, workspaceMcpEntry] as any,
 				config: {

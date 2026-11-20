@@ -280,12 +280,12 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		try {
 			const models = await this.client.listModels()
 			const sortedModels = [...models].sort((a, b) => {
-				const aNem = a.name.toLowerCase().includes("nemotron") ? 1 : 0
-				const bNem = b.name.toLowerCase().includes("nemotron") ? 1 : 0
-				if (bNem !== aNem) return bNem - aNem
 				const aGem = a.name.toLowerCase().includes("gemini") ? 1 : 0
 				const bGem = b.name.toLowerCase().includes("gemini") ? 1 : 0
-				return bGem - aGem
+				if (bGem !== aGem) return bGem - aGem
+				const aNem = a.name.toLowerCase().includes("nemotron") ? 1 : 0
+				const bNem = b.name.toLowerCase().includes("nemotron") ? 1 : 0
+				return bNem - aNem
 			})
 
 			const latest = await this.client.resolveAgentSpec({
@@ -378,46 +378,28 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 		try {
 			const mcpUrl = await this.mcpServer.ensureStarted()
 			await this.client.ensureWorkspaceMcpServer(mcpUrl)
+			const initialPrompt = normalized.config.prompt || ""
+			const isInlineEdit = initialPrompt.includes("Pacior Inline Edit") || initialPrompt.includes("Inline Edit")
 			const modelIdFromConfig = normalized.config.modelId?.trim()
 			const resolved = await this.client.resolveAgentSpec({
 				cwd,
 				mode,
-				requireApprovalForTools: this.getEffectiveApprovalTools(),
+				requireApprovalForTools: isInlineEdit ? [] : this.getEffectiveApprovalTools(),
 				preferredModelId: modelIdFromConfig && modelIdFromConfig !== "trueforge" ? modelIdFromConfig : undefined,
+				isInlineEdit,
 			})
-			let tfSession: TrueForgeApi.Session | undefined
+			let tfSession: TrueForgeApi.Session
 			let fallbackNotice: string | undefined
-			let lastCreateErr: unknown
-
-			const availModels = await this.client.listModels().catch(() => [])
-			const primaryModelName = resolved.spec.model?.name
-			const candidatesToTry: string[] = []
-			if (primaryModelName) {
-				candidatesToTry.push(primaryModelName)
-			}
-			for (const m of availModels) {
-				if (!candidatesToTry.includes(m.name)) {
-					candidatesToTry.push(m.name)
-				}
-			}
-
-			for (const candName of candidatesToTry) {
-				try {
-					resolved.spec.model = { name: candName }
-					tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
-					if (primaryModelName && candName !== primaryModelName) {
-						Logger.log(`[TrueForgeSessionHost] Primary model "${primaryModelName}" failed. Successfully fell back to "${candName}".`)
-						fallbackNotice = `⚠️ **Automatic Model Fallback (Criterion B3)**: Primary model was unavailable. Automatically failed over to configured model "${candName}".`
-					}
-					break
-				} catch (createErr) {
-					lastCreateErr = createErr
-					Logger.warn(`[TrueForgeSessionHost] Session creation with model "${candName}" failed: ${createErr}. Attempting next available model...`)
-				}
-			}
-
-			if (!tfSession) {
-				throw lastCreateErr ?? new Error("Failed to initialize session: no working models configured on TrueForge.")
+			try {
+				tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
+			} catch (createErr) {
+				Logger.warn(`[TrueForgeSessionHost] Session creation with model "${resolved.spec.model?.name}" failed: ${createErr}. Attempting Gemini failover...`)
+				const availModels = await this.client.listModels().catch(() => [])
+				const fallback = availModels.find((m) => m.name !== resolved.spec.model?.name && m.name.toLowerCase().includes("gemini")) || availModels[0]
+				if (!fallback) throw createErr
+				fallbackNotice = `⚠️ **Automatic Model Fallback (Criterion B3)**: Primary model was unavailable. Automatically failed over to configured model "${fallback.name}".`
+				resolved.spec.model = { name: fallback.name }
+				tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
 			}
 
 			const modelId = resolved.spec.model?.name ?? normalized.config.modelId ?? "trueforge"
@@ -1019,6 +1001,19 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								try {
 									const { PaciorDiffReviewManager } = await import("./PaciorDiffReviewManager")
 									PaciorDiffReviewManager.getInstance().showReview()
+									if (isInlineEdit) {
+										const vscode = await import("vscode")
+										vscode.window
+											.showInformationMessage("Pacior Inline Edit applied. Accept or Reject changes?", "Accept", "Reject")
+											.then((choice) => {
+												const mgr = PaciorDiffReviewManager.getInstance()
+												if (choice === "Accept") {
+													mgr.acceptAll()
+												} else if (choice === "Reject") {
+													mgr.rejectAll()
+												}
+											})
+									}
 								} catch (revErr) {
 									Logger.warn(`[TrueForgeSessionHost] Failed to trigger diff review: ${revErr}`)
 								}
