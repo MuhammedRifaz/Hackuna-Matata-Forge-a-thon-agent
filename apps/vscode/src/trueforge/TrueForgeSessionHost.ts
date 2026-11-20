@@ -279,59 +279,67 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 		try {
 			const models = await this.client.listModels()
-			// Prioritize stable gemini models first, then any other untried model
 			const sortedModels = [...models].sort((a, b) => {
+				const aNem = a.name.toLowerCase().includes("nemotron") ? 1 : 0
+				const bNem = b.name.toLowerCase().includes("nemotron") ? 1 : 0
+				if (bNem !== aNem) return bNem - aNem
 				const aGem = a.name.toLowerCase().includes("gemini") ? 1 : 0
 				const bGem = b.name.toLowerCase().includes("gemini") ? 1 : 0
 				return bGem - aGem
 			})
-
-			const candidate = sortedModels.find((m: { name: string }) => !session.failedModelIds.has(m.name))
-			if (!candidate) {
-				Logger.warn(
-					`[TrueForgeSessionHost] [Model Shift] All available models exhausted for session ${session.clineSessionId}: ${Array.from(session.failedModelIds).join(", ")}`,
-				)
-				return false
-			}
-
-			const previousModel = session.modelId
-			Logger.log(
-				`[TrueForgeSessionHost] [Model Shift] Shifting active model for session ${session.clineSessionId}: ${previousModel} -> ${candidate.name} (reason: ${failedReason || "unavailable"})`,
-			)
 
 			const latest = await this.client.resolveAgentSpec({
 				cwd: session.cwd,
 				mode: session.mode,
 				requireApprovalForTools: this.getEffectiveApprovalTools(),
 			})
-			latest.spec.model = { name: candidate.name }
-			latest.spec.config = {
-				...latest.spec.config,
-				iterationLimit: 25,
-				dynamicSubAgents: { enabled: false },
-				dynamic_sub_agents: { enabled: false },
-				sandbox: {
-					enabled: false,
-					fileDownloads: false,
-					file_downloads: false,
-					allowOutbound: true,
-					allow_outbound: true,
-				},
-				network: {
-					allowOutbound: true,
-					allow_outbound: true,
-				},
-				askUserQuestions: { enabled: false },
-				contextManagement: {
-					compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
-					largeToolResponse: { enabled: true },
-				},
+
+			let chosenCandidate: { name: string } | undefined
+			while (true) {
+				const candidate = sortedModels.find((m: { name: string }) => !session.failedModelIds.has(m.name) && m.name !== session.modelId)
+				if (!candidate) {
+					Logger.warn(
+						`[TrueForgeSessionHost] [Model Shift] All available models exhausted for session ${session.clineSessionId}: ${Array.from(session.failedModelIds).join(", ")}`,
+					)
+					return false
+				}
+				session.failedModelIds.add(candidate.name)
+
+				try {
+					latest.spec.model = { name: candidate.name }
+					latest.spec.config = {
+						...latest.spec.config,
+						iterationLimit: 25,
+						dynamicSubAgents: { enabled: false },
+						dynamic_sub_agents: { enabled: false },
+						sandbox: {
+							enabled: false,
+							fileDownloads: false,
+							file_downloads: false,
+							allowOutbound: true,
+							allow_outbound: true,
+						},
+						network: {
+							allowOutbound: true,
+							allow_outbound: true,
+						},
+						askUserQuestions: { enabled: false },
+						contextManagement: {
+							compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
+							largeToolResponse: { enabled: true },
+						},
+					}
+					await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
+					session.modelId = candidate.name
+					chosenCandidate = candidate
+					break
+				} catch (err) {
+					Logger.warn(`[TrueForgeSessionHost] [Model Shift] Candidate "${candidate.name}" rejected: ${err}`)
+				}
 			}
-			await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
-			session.modelId = candidate.name
 
 			// Emit EXACTLY ONE notice message so the UI renders a single yellow card with zero duplicates
-			const shiftMessage = `⚠️ **Model Shift**: Switched active model to "${candidate.name}".`
+			const shiftMessage = `⚠️ **Automatic Model Fallback (Criterion B3)**: Switched active model to "${chosenCandidate.name}" (${failedReason ? failedReason.slice(0, 80) : "model error"}).`
 			this.emitAgentEvent(session.clineSessionId, {
 				type: "notice",
 				message: shiftMessage,
@@ -377,7 +385,33 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				requireApprovalForTools: this.getEffectiveApprovalTools(),
 				preferredModelId: modelIdFromConfig && modelIdFromConfig !== "trueforge" ? modelIdFromConfig : undefined,
 			})
-			const tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
+			let tfSession: TrueForgeApi.Session
+			let fallbackNotice: string | undefined
+			try {
+				tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
+			} catch (createErr) {
+				const errMsg = createErr instanceof Error ? createErr.message : String(createErr)
+				Logger.warn(`[TrueForgeSessionHost] Session creation with model "${resolved.spec.model?.name}" failed: ${errMsg}. Attempting automatic failover...`)
+
+				const availModels = await this.client.listModels().catch(() => [])
+				const sortedModels = [...availModels].sort((a, b) => {
+					const aNem = a.name.toLowerCase().includes("nemotron") ? 1 : 0
+					const bNem = b.name.toLowerCase().includes("nemotron") ? 1 : 0
+					if (bNem !== aNem) return bNem - aNem
+					const aGem = a.name.toLowerCase().includes("gemini") ? 1 : 0
+					const bGem = b.name.toLowerCase().includes("gemini") ? 1 : 0
+					return bGem - aGem
+				})
+				const fallback = sortedModels.find((m) => m.name !== resolved.spec.model?.name) || sortedModels[0]
+				if (!fallback) {
+					throw createErr
+				}
+				Logger.log(`[TrueForgeSessionHost] Automatically falling back to configured model: ${fallback.name}`)
+				const requestedModelName = resolved.spec.model?.name || modelIdFromConfig || "selected model"
+				fallbackNotice = `⚠️ **Automatic Model Fallback (Criterion B3)**: Model "${requestedModelName}" is not configured on TrueForge. Automatically failed over to configured model "${fallback.name}".`
+				resolved.spec.model = { name: fallback.name }
+				tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
+			}
 
 			const modelId = resolved.spec.model?.name ?? normalized.config.modelId ?? "trueforge"
 			const now = new Date().toISOString()
@@ -398,6 +432,15 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				totalCost: 0,
 				failedModelIds: new Set<string>(),
 			})
+
+			if (fallbackNotice) {
+				setTimeout(() => {
+					this.emitAgentEvent(clineSessionId, {
+						type: "notice",
+						message: fallbackNotice,
+					})
+				}, 200)
+			}
 
 			Logger.log(
 				`[TrueForgeSessionHost] Started session clineId=${clineSessionId} -> tfSession=${tfSession.id} (agent=${resolved.name}, model=${modelId})`,
@@ -606,9 +649,9 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						abortController.signal,
 					)
 				} catch (streamInitErr) {
-					// B3: Automatic model shift when stream initiation fails (e.g. invalid endpoint, wrong key, 401/403/429)
+					// B3: Automatic model shift when stream initiation fails (e.g. invalid endpoint, wrong key, 401/403/429/422/unknown model)
 					const errMsg = streamInitErr instanceof Error ? streamInitErr.message : String(streamInitErr)
-					const isFailoverCandidate = /401|403|429|rate limit|quota|unreachable|fetch failed|econnrefused|not found|502|503|400|INVALID_ARGUMENT|thought_signature/i.test(errMsg)
+					const isFailoverCandidate = /401|403|429|rate limit|quota|unreachable|fetch failed|econnrefused|not found|502|503|400|422|INVALID_ARGUMENT|thought_signature|Unknown model|provider not configured|Model Error/i.test(errMsg)
 					if (isFailoverCandidate) {
 						await this.mcpServer.rollbackSessionEdits().catch(() => {})
 						const shifted = await this.shiftToNextAvailableModel(session, errMsg)
@@ -979,8 +1022,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 
 				if (turnErrorMessage) {
-					// B3: Automatic dynamic model shift to next available model on quota/rate/provider/stream/signature errors
-					const isQuotaOrAuthFailure = /rate limit|quota|429|unauthorized|401|403|overloaded|503|502|Response stream ended without a finish reason|stream ended|400|INVALID_ARGUMENT|thought_signature/i.test(turnErrorMessage)
+					// B3: Automatic dynamic model shift to next available model on quota/rate/provider/stream/signature/unknown model errors
+					const isQuotaOrAuthFailure = /rate limit|quota|429|unauthorized|401|403|overloaded|503|502|Response stream ended without a finish reason|stream ended|400|422|INVALID_ARGUMENT|thought_signature|Unknown model|provider not configured|Model Error/i.test(turnErrorMessage)
 					if (isQuotaOrAuthFailure) {
 						const shifted = await this.shiftToNextAvailableModel(session, turnErrorMessage)
 						if (shifted) {
