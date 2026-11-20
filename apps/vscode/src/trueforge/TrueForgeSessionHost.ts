@@ -205,12 +205,13 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 	private getEffectiveApprovalTools(): string[] {
 		try {
 			const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
-			if (!autoApprovalSettings) {
-				return DEFAULT_APPROVAL_TOOLS
+			if (autoApprovalSettings?.enabled === false) {
+				return DEFAULT_APPROVAL_TOOLS.filter((tool) => !isToolAutoApproved(tool, autoApprovalSettings))
 			}
-			return DEFAULT_APPROVAL_TOOLS.filter((tool) => !isToolAutoApproved(tool, autoApprovalSettings))
+			// By default in autonomous Pacior agent mode, auto-approve editor & safe commands
+			return []
 		} catch {
-			return DEFAULT_APPROVAL_TOOLS
+			return []
 		}
 	}
 
@@ -979,7 +980,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					if (isIterationLimit && !turnCancelled) {
 						const count = (session.continuationCount || 0) + 1
 						session.continuationCount = count
-						if (count <= 1) {
+						if (count <= 3) {
 							Logger.log(`[TrueForgeSessionHost] Iteration boundary reached in turn ${currentTurnId}. Seamlessly continuing into turn ${count + 1}...`)
 							this.emitAgentEvent(session.clineSessionId, {
 								type: "notice",

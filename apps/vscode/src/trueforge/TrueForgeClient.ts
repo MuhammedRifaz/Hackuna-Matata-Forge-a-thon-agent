@@ -182,8 +182,17 @@ export class TrueForgeClient {
 			}
 		}
 
+		// Ensure high-reliability model (Gemini) is prioritized over rate-limited free models on fresh installs
+		try {
+			const modelsResp = await this.sdk.models.list({ timeoutInSeconds: 5, maxRetries: 0 })
+			const geminiModel = modelsResp.data?.find((m) => m.name.toLowerCase().includes("gemini"))
+			if (geminiModel && !baseManifest.model?.name?.toLowerCase().includes("gemini")) {
+				baseManifest.model = { name: geminiModel.name }
+			}
+		} catch {}
+
 		const mcpServerName = options.mcpServerName ?? VSCODE_MCP_SERVER_NAME
-		const existingMcpServers = (baseManifest.mcpServers ?? []).filter((srv) => srv.name !== mcpServerName)
+		const existingMcpServers = (baseManifest.mcpServers ?? (baseManifest as any).mcp_servers ?? []).filter((srv: { name: string }) => srv.name !== mcpServerName)
 		const approvalList = options.requireApprovalForTools ?? []
 		// Deferred tool loading: preload only the 4 essential core tools to cut tool definition overhead (~50% savings)
 		// Infrequently used tools (list_files, write_to_file, assemble_context, finish, complete_task) stay deferred on demand.
@@ -233,6 +242,7 @@ export class TrueForgeClient {
 				...baseManifest,
 				instructions: workspaceContext,
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
+				mcp_servers: [...existingMcpServers, workspaceMcpEntry] as any,
 				config: {
 					...baseManifest.config,
 					iteration_limit: 80,

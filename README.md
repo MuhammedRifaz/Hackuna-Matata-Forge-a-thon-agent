@@ -241,12 +241,15 @@ If the active model encounters a `429 Rate Limit`, quota exhaustion, or stream f
 
 ---
 
-## 👥 Team
+## 👥 Team — Hackuna Matata
 
-| Member | College / Organization | GitHub Handle | Role |
-| :--- | :--- | :--- | :--- |
-| **Muhammed Rifaz** | Yenepoya Institute of Technology | [`@MuhammedRifaz`](https://github.com/MuhammedRifaz) | Lead System Architect, TrueForge Session Host Bridge, MCP Workspace Server, Post-Task Diff Review Manager |
-| **Team Pacior** | IIT Bombay Forge-a-thon | Repository Contributor | PACIOR Context Engine, AST Structural Parser, Evaluation Validation & Packaging |
+| Member | Email | GitHub Handle |
+| :--- | :--- | :--- |
+| **Muhammad Haashim** | `haashimmuhammad7@gmail.com` | [@HAFIZ-HAASHIM](https://github.com/HAFIZ-HAASHIM) |
+| **Mohammed Rifaz** | `mohammedrifaz0192@gmail.com` | [@MuhammedRifaz](https://github.com/MuhammedRifaz) |
+| **Muaiz Hassan** | `muaizhassan07@gmail.com` | [@Muaizhassan](https://github.com/Muaizhassan) |
+| **Muhammed Rafil** | `rafilmuhammed94@gmail.com` | [@rafilverse](https://github.com/rafilverse) |
+| **Aboobakker Siddiq** | `aboobakkersiddiq82@gmail.com` | [@siddiq-malik](https://github.com/siddiq-malik) |
 
 ---
 

@@ -19,6 +19,7 @@ async function main() {
 
 		const preferredModel =
 			models.find((m) => m.name.toLowerCase().includes("gemini")) ||
+			models.find((m) => m.name.toLowerCase().includes("flash")) ||
 			models[0] || { name: "gemini/gemini-3-5-flash-lite" };
 
 		// 2. Provision / Sync pacior Agent in TrueForge
