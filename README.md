@@ -103,11 +103,25 @@ bun --cwd apps/vscode build:webview
 bun --cwd apps/vscode esbuild.mjs --production
 ```
 
-#### 3. Start TrueForge Agent Harness
-TrueForge runs locally as an independent daemon on port `8790`:
+#### 3. Start TrueForge Agent Harness (With Outbound Access Allowed)
+TrueForge runs locally as an independent daemon on port `8790`. **Crucial**: Outbound network access must be enabled via `ALLOW_OUTBOUND=true`:
+
+**Linux / macOS (Bash / Zsh):**
 ```bash
-npx @truefoundry/trueforge
+ALLOW_OUTBOUND=true npx @truefoundry/trueforge
 ```
+
+**Windows (Command Prompt / CMD):**
+```cmd
+set ALLOW_OUTBOUND=true&& npx @truefoundry/trueforge
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:ALLOW_OUTBOUND="true"; npx @truefoundry/trueforge
+```
+*(Or simply double-click `run-trueforge.bat` on Windows!)*
+
 TrueForge web dashboard will open at **`http://localhost:8790`**.
 
 #### 4. Configure Your LLM Provider in TrueForge
@@ -149,8 +163,8 @@ Click the **Pacior Code** icon in the VS Code Activity Bar (left sidebar) to ope
 │                                                       │                │
 │   ┌──────────────────────────────────────────────┐    │                │
 │   │  Agent Execution Loop (agent.pacior.yaml)    │    │                │
-│   │  - Iteration Limit: 80                       │    │                │
-│   │  - Auto-Compaction: 12,000 tokens            │    │                │
+│   │  - Iteration Limit: 25                       │    │                │
+│   │  - Auto-Compaction: 18,000 tokens            │    │                │
 │   │  - Outbound URLs: ALLOWED                    │    │                │
 │   │  - Dynamic Fallback Routing                  │    │                │
 │   └──────────────────────┬───────────────────────┘    │                │

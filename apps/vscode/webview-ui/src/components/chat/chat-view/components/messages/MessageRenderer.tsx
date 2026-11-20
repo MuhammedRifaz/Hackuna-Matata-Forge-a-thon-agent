@@ -6,7 +6,7 @@ import ChatRow from "@/components/chat/ChatRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import type { MessageHandlers } from "../../types/chatTypes"
-import { findReasoningForApiReq, isSpacerMessage, isToolGroup } from "../../utils/messageUtils"
+import { findReasoningForApiReq, isToolGroup } from "../../utils/messageUtils"
 import { ToolGroupRenderer } from "./ToolGroupRenderer"
 
 interface MessageRendererProps {
@@ -91,10 +91,6 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 	}
 
 	// Regular message
-	if (!Array.isArray(messageOrGroup) && isSpacerMessage(messageOrGroup)) {
-		return null
-	}
-
 	return (
 		<div
 			className={cn({

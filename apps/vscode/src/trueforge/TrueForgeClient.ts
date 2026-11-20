@@ -235,20 +235,14 @@ export class TrueForgeClient {
 				mcpServers: [...existingMcpServers, workspaceMcpEntry],
 				config: {
 					...baseManifest.config,
-					iteration_limit: 80,
-					iterationLimit: 80,
+					iteration_limit: 25,
+					iterationLimit: 25,
 					dynamic_sub_agents: { enabled: true },
 					dynamicSubAgents: { enabled: true },
 					sandbox: {
 						enabled: false,
 						file_downloads: false,
 						fileDownloads: false,
-						allow_outbound: true,
-						allowOutbound: true,
-					},
-					network: {
-						allow_outbound: true,
-						allowOutbound: true,
 					},
 					generative_ui: { enabled: false },
 					generativeUi: { enabled: false },
@@ -257,16 +251,16 @@ export class TrueForgeClient {
 					context_management: {
 						compaction: {
 							enabled: true,
-							trigger: { type: "input_tokens", value: 12000 },
+							trigger: { type: "input_tokens", value: 18000 },
 						},
-						large_tool_response: { enabled: true, max_tokens: 1500 },
+						large_tool_response: { enabled: true },
 					},
 					contextManagement: {
 						compaction: {
 							enabled: true,
-							trigger: { type: "input_tokens", value: 12000 },
+							trigger: { type: "input_tokens", value: 18000 },
 						},
-						largeToolResponse: { enabled: true, maxTokens: 1500 },
+						largeToolResponse: { enabled: true },
 					},
 				} as any,
 			},

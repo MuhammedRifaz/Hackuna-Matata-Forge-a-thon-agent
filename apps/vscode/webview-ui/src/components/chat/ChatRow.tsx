@@ -35,7 +35,7 @@ import {
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { isOptionsAskActive } from "@/components/chat/chat-view/shared/buttonConfig"
-import { canRestoreWorkspaceFromMessage, isSpacerMessage } from "@/components/chat/chat-view/utils/messageUtils"
+import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { CloudProvisioningRow } from "@/components/cloud/CloudProvisioningRow"
 import { WithCopyButton } from "@/components/common/CopyButton"
@@ -99,6 +99,44 @@ interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange" | "onL
 
 export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
 const InvisibleSpacer = () => <div aria-hidden className="hidden" />
+
+function isSpacerMessage(message: ClineMessage): boolean {
+	if (message.type === "say") {
+		if (message.say === "text" && (message.text ?? "").trim() === "" && (message.images?.length ?? 0) === 0) {
+			return true
+		}
+		if (message.say === "reasoning" && (message.text ?? "").trim() === "") {
+			return true
+		}
+		if (
+			message.say === "api_req_finished" ||
+			message.say === "deleted_api_reqs" ||
+			message.say === "subagent_usage" ||
+			message.say === "checkpoint_created"
+		) {
+			return true
+		}
+		if (message.say === "api_req_started") {
+			try {
+				const info = JSON.parse(message.text || "{}")
+				if (!info.cancelReason && !info.streamingFailedMessage && !info.cost) {
+					return true
+				}
+			} catch {
+				return true
+			}
+		}
+		if (message.say === "tool") {
+			try {
+				const t = JSON.parse(message.text || "{}")
+				if (t.tool === "call_tool" || t.tool === "list_tools" || t.tool === "get_tool_info") {
+					return true
+				}
+			} catch {}
+		}
+	}
+	return false
+}
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {

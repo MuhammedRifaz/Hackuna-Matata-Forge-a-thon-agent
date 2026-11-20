@@ -283,23 +283,12 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			latest.spec.model = { name: candidate.name }
 			latest.spec.config = {
 				...latest.spec.config,
-				iterationLimit: 80,
-				iteration_limit: 80,
-				sandbox: {
-					enabled: false,
-					fileDownloads: false,
-					file_downloads: false,
-					allowOutbound: true,
-					allow_outbound: true,
-				},
-				network: {
-					allowOutbound: true,
-					allow_outbound: true,
-				},
+				iterationLimit: 25,
+				sandbox: { enabled: false, fileDownloads: false },
 				askUserQuestions: { enabled: true },
 				contextManagement: {
-					compaction: { enabled: true, trigger: { type: "input_tokens", value: 12000 } },
-					largeToolResponse: { enabled: true, maxTokens: 1500 },
+					compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
+					largeToolResponse: { enabled: true },
 				},
 			}
 			await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
@@ -450,8 +439,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 				latest.spec.config = {
 					...latest.spec.config,
-					iterationLimit: 80,
-					iteration_limit: 80,
+					iterationLimit: 25,
 					sandbox: { enabled: false, fileDownloads: false },
 					askUserQuestions: { enabled: true },
 					contextManagement: {
@@ -608,36 +596,20 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 							activeSourceEventId = ev.id
 							iterationCount += 1
 
-							const rawReasoning = (ev as any).reasoning_content ?? (ev as any).reasoningContent
-							if (rawReasoning && typeof rawReasoning === "string" && rawReasoning.trim()) {
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "content_start",
-									contentType: "reasoning",
-									reasoning: rawReasoning,
-								})
-								this.emitAgentEvent(session.clineSessionId, {
-									type: "content_end",
-									contentType: "reasoning",
-									reasoning: rawReasoning,
-								})
-							}
-
 							// In non-streaming model.message events, tool calls arrive complete.
 							// Emit content_start immediately so the UI transitions out of the "Thinking" state.
-							const rawToolCalls = (ev as any).tool_calls ?? (ev as any).toolCalls
-							if (Array.isArray(rawToolCalls)) {
-								for (let idx = 0; idx < rawToolCalls.length; idx++) {
-									const tc = rawToolCalls[idx]
+							if (Array.isArray(ev.toolCalls)) {
+								for (let idx = 0; idx < ev.toolCalls.length; idx++) {
+									const tc = ev.toolCalls[idx]
 									const callId = tc.id || `tc-${ev.id}-${idx}`
-									const rawName = tc.function?.name ?? tc.name ?? "unknown"
-									const rawArgs = tc.function?.arguments ?? tc.arguments ?? "{}"
-									const unwrapped = unwrapTrueForgeTool(rawName, rawArgs)
+									const rawName = tc.function?.name ?? "unknown"
+									const unwrapped = unwrapTrueForgeTool(rawName, tc.function?.arguments ?? "{}")
 									let tracked = toolCallsById.get(callId)
 									if (!tracked) {
 										tracked = {
 											id: callId,
 											name: unwrapped.name,
-											rawArguments: typeof rawArgs === "string" ? rawArgs : JSON.stringify(rawArgs),
+											rawArguments: tc.function?.arguments ?? "",
 											parsedInput: unwrapped.input,
 											sourceEventId: ev.id,
 											startedEmitted: false,
@@ -662,7 +634,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						}
 
 						case "model.message.delta": {
-							const deltaReasoning = (ev as any).reasoning_content ?? ev.reasoningContent
+							const deltaReasoning = ev.reasoningContent
 							if (deltaReasoning) {
 								openReasoning = true
 								activeReasoning += deltaReasoning
@@ -692,10 +664,9 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								})
 							}
 
-							const deltaToolCalls = (ev as any).tool_calls ?? (ev as any).toolCalls
-							if (Array.isArray(deltaToolCalls)) {
+							if (Array.isArray(ev.toolCalls)) {
 								closeOpenTextAndReasoning()
-								for (const tcDelta of deltaToolCalls) {
+								for (const tcDelta of ev.toolCalls) {
 									const idx = tcDelta.index ?? 0
 									let callId = tcDelta.id
 									if (!callId) {
@@ -706,7 +677,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 									}
 									let tracked = toolCallsById.get(callId)
 									if (!tracked) {
-										const unwrapped = unwrapTrueForgeTool(tcDelta.function?.name ?? tcDelta.name ?? "unknown", "")
+										const unwrapped = unwrapTrueForgeTool(tcDelta.function?.name ?? "unknown", "")
 										tracked = {
 											id: callId,
 											name: unwrapped.name,
@@ -719,13 +690,12 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 										toolCallsById.set(callId, tracked)
 										toolCallOrder[idx] = callId
 									}
-									if (tcDelta.function?.name || tcDelta.name) {
-										const unwrapped = unwrapTrueForgeTool(tcDelta.function?.name ?? tcDelta.name, tracked.rawArguments)
+									if (tcDelta.function?.name) {
+										const unwrapped = unwrapTrueForgeTool(tcDelta.function.name, tracked.rawArguments)
 										tracked.name = unwrapped.name
 									}
-									if (tcDelta.function?.arguments || tcDelta.arguments) {
-										const deltaArgs = tcDelta.function?.arguments ?? tcDelta.arguments
-										tracked.rawArguments += typeof deltaArgs === "string" ? deltaArgs : JSON.stringify(deltaArgs)
+									if (tcDelta.function?.arguments) {
+										tracked.rawArguments += tcDelta.function.arguments
 										const unwrapped = unwrapTrueForgeTool(tracked.name, tracked.rawArguments)
 										tracked.name = unwrapped.name
 										tracked.parsedInput = unwrapped.input
@@ -733,8 +703,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 								}
 							}
 
-							const finishReason = (ev as any).finish_reason ?? ev.finishReason
-							if (finishReason === "tool_calls") {
+							if (ev.finishReason === "tool_calls") {
 								for (const id of toolCallOrder) {
 									const tc = toolCallsById.get(id)
 									if (!tc) continue
@@ -898,23 +867,10 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 						}
 
 						case "tool.response": {
-							const toolCallId = (ev as any).tool_call_id ?? ev.toolCallId
-							let tc = toolCallId ? toolCallsById.get(toolCallId) : undefined
-							if (!tc && toolCallId) {
-								tc = {
-									id: toolCallId,
-									name: "tool",
-									rawArguments: "{}",
-									parsedInput: {},
-									sourceEventId: ev.id,
-									startedEmitted: false,
-									endedEmitted: false,
-								}
-								toolCallsById.set(toolCallId, tc)
-							}
+							const tc = toolCallsById.get(ev.toolCallId)
 							const isMeta = tc ? unwrapTrueForgeTool(tc.name, tc.parsedInput).isMetaTool : false
-							if (!isMeta && tc) {
-								if (!tc.startedEmitted) {
+							if (!isMeta) {
+								if (tc && !tc.startedEmitted) {
 									tc.startedEmitted = true
 									this.emitAgentEvent(session.clineSessionId, {
 										type: "content_start",
@@ -924,7 +880,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 										input: tc.parsedInput,
 									})
 								}
-								if (!tc.endedEmitted) {
+								if (tc && !tc.endedEmitted) {
 									tc.endedEmitted = true
 									this.emitAgentEvent(session.clineSessionId, {
 										type: "content_end",
