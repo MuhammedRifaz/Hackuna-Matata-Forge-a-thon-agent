@@ -385,32 +385,39 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				requireApprovalForTools: this.getEffectiveApprovalTools(),
 				preferredModelId: modelIdFromConfig && modelIdFromConfig !== "trueforge" ? modelIdFromConfig : undefined,
 			})
-			let tfSession: TrueForgeApi.Session
+			let tfSession: TrueForgeApi.Session | undefined
 			let fallbackNotice: string | undefined
-			try {
-				tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
-			} catch (createErr) {
-				const errMsg = createErr instanceof Error ? createErr.message : String(createErr)
-				Logger.warn(`[TrueForgeSessionHost] Session creation with model "${resolved.spec.model?.name}" failed: ${errMsg}. Attempting automatic failover...`)
+			let lastCreateErr: unknown
 
-				const availModels = await this.client.listModels().catch(() => [])
-				const sortedModels = [...availModels].sort((a, b) => {
-					const aNem = a.name.toLowerCase().includes("nemotron") ? 1 : 0
-					const bNem = b.name.toLowerCase().includes("nemotron") ? 1 : 0
-					if (bNem !== aNem) return bNem - aNem
-					const aGem = a.name.toLowerCase().includes("gemini") ? 1 : 0
-					const bGem = b.name.toLowerCase().includes("gemini") ? 1 : 0
-					return bGem - aGem
-				})
-				const fallback = sortedModels.find((m) => m.name !== resolved.spec.model?.name) || sortedModels[0]
-				if (!fallback) {
-					throw createErr
+			const availModels = await this.client.listModels().catch(() => [])
+			const primaryModelName = resolved.spec.model?.name
+			const candidatesToTry: string[] = []
+			if (primaryModelName) {
+				candidatesToTry.push(primaryModelName)
+			}
+			for (const m of availModels) {
+				if (!candidatesToTry.includes(m.name)) {
+					candidatesToTry.push(m.name)
 				}
-				Logger.log(`[TrueForgeSessionHost] Automatically falling back to configured model: ${fallback.name}`)
-				const requestedModelName = resolved.spec.model?.name || modelIdFromConfig || "selected model"
-				fallbackNotice = `⚠️ **Automatic Model Fallback (Criterion B3)**: Model "${requestedModelName}" is not configured on TrueForge. Automatically failed over to configured model "${fallback.name}".`
-				resolved.spec.model = { name: fallback.name }
-				tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
+			}
+
+			for (const candName of candidatesToTry) {
+				try {
+					resolved.spec.model = { name: candName }
+					tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
+					if (primaryModelName && candName !== primaryModelName) {
+						Logger.log(`[TrueForgeSessionHost] Primary model "${primaryModelName}" failed. Successfully fell back to "${candName}".`)
+						fallbackNotice = `⚠️ **Automatic Model Fallback (Criterion B3)**: Primary model was unavailable. Automatically failed over to configured model "${candName}".`
+					}
+					break
+				} catch (createErr) {
+					lastCreateErr = createErr
+					Logger.warn(`[TrueForgeSessionHost] Session creation with model "${candName}" failed: ${createErr}. Attempting next available model...`)
+				}
+			}
+
+			if (!tfSession) {
+				throw lastCreateErr ?? new Error("Failed to initialize session: no working models configured on TrueForge.")
 			}
 
 			const modelId = resolved.spec.model?.name ?? normalized.config.modelId ?? "trueforge"
@@ -1022,17 +1029,21 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 
 				if (turnErrorMessage) {
-					// B3: Automatic dynamic model shift to next available model on quota/rate/provider/stream/signature/unknown model errors
-					const isQuotaOrAuthFailure = /rate limit|quota|429|unauthorized|401|403|overloaded|503|502|Response stream ended without a finish reason|stream ended|400|422|INVALID_ARGUMENT|thought_signature|Unknown model|provider not configured|Model Error/i.test(turnErrorMessage)
+					// B3: Automatic dynamic model shift to next available model on quota/rate/provider/stream/signature/unknown model/404 errors
+					const isQuotaOrAuthFailure = /rate limit|quota|429|unauthorized|401|403|overloaded|503|502|Response stream ended without a finish reason|stream ended|400|404|422|INVALID_ARGUMENT|thought_signature|Unknown model|provider not configured|Model Error|Not Found/i.test(turnErrorMessage)
 					if (isQuotaOrAuthFailure) {
 						const shifted = await this.shiftToNextAvailableModel(session, turnErrorMessage)
 						if (shifted) {
-							// Cooldown pause so rolling rate limit window resets cleanly before the next turn
-							await new Promise((resolve) => setTimeout(resolve, 5000))
+							await new Promise((resolve) => setTimeout(resolve, 800))
 							this.mcpServer.commitSessionEdits()
+							const promptText = input.prompt || ""
+							const isFirstTurn = !session.continuationCount && (!finalText || finalText.length < 20)
+							const retryPrompt = isFirstTurn
+								? promptText
+								: "The previous model turn was interrupted. All workspace code edits so far have been preserved. Continue the task from the current workspace state. Do NOT re-read already inspected files or repeat completed edits. Apply any remaining edits via 'editor', run pytest once via 'run_commands' to verify, and conclude immediately with your final summary."
 							return this.send({
 								sessionId: input.sessionId,
-								prompt: "The previous model turn was interrupted by an API rate limit. All workspace code edits so far have been preserved. Continue the task from the current workspace state. Do NOT re-read already inspected files or repeat completed edits. Apply any remaining edits via 'editor', run pytest once via 'run_commands' to verify, and conclude immediately with your final summary.",
+								prompt: retryPrompt,
 								mode: input.mode,
 							})
 						}
@@ -1106,18 +1117,22 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			Logger.error(`[TrueForgeSessionHost] Turn failed: ${formatted.message}`)
 
 			// B3: Automatic dynamic model shift to next available model
-			const isModelFailure = /model|rate limit|quota|unauthorized|failed to fetch|overloaded|503|502|429|400|INVALID_ARGUMENT|thought_signature/i.test(
+			const isModelFailure = /model|rate limit|quota|unauthorized|failed to fetch|overloaded|503|502|429|400|404|422|INVALID_ARGUMENT|thought_signature|Unknown model|provider not configured|Model Error|Not Found/i.test(
 				formatted.message,
 			)
 			if (isModelFailure) {
 				const shifted = await this.shiftToNextAvailableModel(session, formatted.message)
 				if (shifted) {
-					// Cooldown pause so rolling rate limit window resets cleanly before the next turn
-					await new Promise((resolve) => setTimeout(resolve, 5000))
+					await new Promise((resolve) => setTimeout(resolve, 800))
 					this.mcpServer.commitSessionEdits()
+					const promptText = input.prompt || ""
+					const isFirstTurn = !session.continuationCount && (!finalText || finalText.length < 20)
+					const retryPrompt = isFirstTurn
+						? promptText
+						: "The previous model turn was interrupted. All workspace code edits so far have been preserved. Continue the task from the current workspace state. Do NOT re-read already inspected files or repeat completed edits. Apply any remaining edits via 'editor', run pytest once via 'run_commands' to verify, and conclude immediately with your final summary."
 					return this.send({
 						sessionId: input.sessionId,
-						prompt: "The previous model turn was interrupted by an API rate limit. All workspace code edits so far have been preserved. Continue the task from the current workspace state. Do NOT re-read already inspected files or repeat completed edits. Apply any remaining edits via 'editor', run pytest once via 'run_commands' to verify, and conclude immediately with your final summary.",
+						prompt: retryPrompt,
 						mode: input.mode,
 					})
 				}

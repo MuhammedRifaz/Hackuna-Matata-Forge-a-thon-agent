@@ -59,11 +59,17 @@ function patchVercelAILLM(filePath) {
 			modified = true;
 		}
 
-		// 2. Ensure providerOptions.google includes thoughtSignature when replaying tool call parts
-		const oldToolCallSpread = '...thoughtSignature !== void 0 ? {\n          providerOptions: {\n            google: { thoughtSignature },';
-		const newToolCallSpread = '...{\n          providerOptions: {\n            google: { thoughtSignature: thoughtSignature || "skip_thought_signature_validator" },';
-		if (content.includes(oldToolCallSpread)) {
-			content = content.replace(oldToolCallSpread, newToolCallSpread);
+		// 2. Clean up any multi-provider thoughtSignature injection so non-Google providers (OpenRouter, Anthropic, OpenAI) never receive invalid providerOptions
+		const multiProviderBlockRegex = /\.\.\.thoughtSignature\s*!==\s*void 0\s*\?\s*\{\s*providerOptions:\s*\{\s*google:\s*\{\s*thoughtSignature\s*\},[\s\S]*?\[providerName\]:\s*\{\s*thoughtSignature\s*\}[\s\S]*?\}\s*\}\s*:\s*\{\}/g;
+		const cleanSpread = '...thoughtSignature !== void 0 ? { providerOptions: { google: { thoughtSignature } } } : {}';
+		if (multiProviderBlockRegex.test(content)) {
+			content = content.replace(multiProviderBlockRegex, cleanSpread);
+			modified = true;
+		}
+
+		const unconditionalSpreadRegex = /\.\.\.\{\s*providerOptions:\s*\{\s*google:\s*\{\s*thoughtSignature:\s*thoughtSignature\s*\|\|\s*"skip_thought_signature_validator"\s*\},[\s\S]*?\}\s*\}/g;
+		if (unconditionalSpreadRegex.test(content)) {
+			content = content.replace(unconditionalSpreadRegex, cleanSpread);
 			modified = true;
 		}
 

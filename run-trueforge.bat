@@ -23,14 +23,16 @@ set TRUEFORGE_SANDBOX_ALLOW_OUTBOUND=true
 set NETWORK_POLICY_ENABLED=false
 
 REM 2b. Apply Gemini Tool-Calling Thought-Signature Compatibility Patch
-node "%~dp0scripts\patch-gemini-signature.js"
+cd /d "%~dp0"
+node scripts\patch-gemini-signature.js
 
 REM 3. Check if server is already running on port 8790
 curl -s -m 2 http://localhost:8790 >nul 2>nul
 if %errorlevel% equ 0 (
     echo [SUCCESS] TrueForge server is already active on http://localhost:8790.
     echo [INFO] Provisioning Pacior agent configuration in TrueForge...
-    node "%~dp0scripts\provision-trueforge.js"
+    cd /d "%~dp0"
+    node scripts\provision-trueforge.js
     echo [INFO] Opening dashboard in browser...
     start http://localhost:8790
     echo TrueForge is ready.

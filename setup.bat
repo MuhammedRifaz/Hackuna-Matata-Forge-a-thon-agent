@@ -55,7 +55,7 @@ set "NEED_BUILD=0"
 if not exist "%EXT_BUNDLE%" set "NEED_BUILD=1"
 if not exist "%WEBVIEW_INDEX%" set "NEED_BUILD=1"
 
-if "%NEED_BUILD%"=="1" (
+if not exist "%WEBVIEW_INDEX%" (
     echo [INFO] Installing monorepo dependencies...
     call bun install
     if !errorlevel! neq 0 (
@@ -82,18 +82,18 @@ if "%NEED_BUILD%"=="1" (
         exit /b 1
     )
     cd /d "%~dp0"
-
-    echo [INFO] Bundling VS Code Extension with esbuild...
-    cd /d "%~dp0apps\vscode"
-    call bun esbuild.mjs --production
-    if !errorlevel! neq 0 (
-        echo [ERROR] esbuild bundling failed.
-        cd /d "%~dp0"
-        pause
-        exit /b 1
-    )
-    cd /d "%~dp0"
 )
+
+echo [INFO] Bundling VS Code Extension with esbuild...
+cd /d "%~dp0apps\vscode"
+call bun esbuild.mjs --production
+if !errorlevel! neq 0 (
+    echo [ERROR] esbuild bundling failed.
+    cd /d "%~dp0"
+    pause
+    exit /b 1
+)
+cd /d "%~dp0"
 
 REM Verify bundle integrity
 if not exist "%EXT_BUNDLE%" (
@@ -116,7 +116,8 @@ set TRUEFORGE_SANDBOX_ALLOW_OUTBOUND=true
 set NETWORK_POLICY_ENABLED=false
 
 REM 5b. Apply Gemini Tool-Calling Thought-Signature Compatibility Patch
-node "%~dp0scripts\patch-gemini-signature.js"
+cd /d "%~dp0"
+node scripts\patch-gemini-signature.js
 
 echo [INFO] Checking TrueForge Agent Harness at http://localhost:8790 ...
 curl -s -m 2 http://localhost:8790 >nul 2>nul
@@ -125,14 +126,16 @@ if %errorlevel% neq 0 (
     start "TrueForge Agent Harness" cmd /k "set ALLOW_OUTBOUND=true&& set TRUEFORGE_ALLOW_OUTBOUND=true&& set TRUEFORGE_SANDBOX_ALLOW_OUTBOUND=true&& set NETWORK_POLICY_ENABLED=false&& npx @truefoundry/trueforge"
     echo [INFO] Waiting for TrueForge server to boot...
     ping -n 6 127.0.0.1 >nul
-    node "%~dp0scripts\patch-gemini-signature.js"
+    cd /d "%~dp0"
+    node scripts\patch-gemini-signature.js
 ) else (
     echo [SUCCESS] TrueForge harness is already running on http://localhost:8790.
 )
 
 REM 6. Synchronize Pacior Agent and Configuration into TrueForge
 echo [INFO] Provisioning Pacior agent configuration in TrueForge...
-node "%~dp0scripts\provision-trueforge.js"
+cd /d "%~dp0"
+node scripts\provision-trueforge.js
 
 REM 7. Open TrueForge web UI in browser
 echo [INFO] Opening TrueForge web dashboard at http://localhost:8790 ...

@@ -35,29 +35,27 @@ if not exist "!FLASK_DIR!\pyproject.toml" (
     echo [INFO] Evaluation workspace Flask Practice located at "!FLASK_DIR!".
 )
 
-REM 3. Ensure Extension bundle exists
+REM 3. Ensure Extension bundle is compiled and up-to-date
 set "EXT_BUNDLE=%~dp0apps\vscode\dist\extension.js"
 set "WEBVIEW_INDEX=%~dp0apps\vscode\webview-ui\build\index.html"
 
-set "NEED_BUILD=0"
-if not exist "%EXT_BUNDLE%" set "NEED_BUILD=1"
-if not exist "%WEBVIEW_INDEX%" set "NEED_BUILD=1"
-
-if "!NEED_BUILD!"=="1" (
-    echo [INFO] Building extension bundle...
-    call bun install
-    call bun run build:sdk
+if not exist "%WEBVIEW_INDEX%" (
+    echo [INFO] Building Webview UI...
     cd /d "%~dp0apps\vscode\webview-ui"
     call bun run build
-    cd /d "%~dp0apps\vscode"
-    call bun esbuild.mjs --production
     cd /d "%~dp0"
 )
+
+echo [INFO] Compiling VS Code Extension bundle with esbuild...
+cd /d "%~dp0apps\vscode"
+call bun esbuild.mjs --production
+cd /d "%~dp0"
 
 REM 4. Provision / sync Pacior Agent with TrueForge if running
 curl -s -m 2 http://localhost:8790 >nul 2>nul
 if !errorlevel! equ 0 (
-    node "%~dp0scripts\provision-trueforge.js" >nul 2>nul
+    cd /d "%~dp0"
+    node scripts\provision-trueforge.js >nul 2>nul
 )
 
 REM 5. Launch VS Code with Pacior Code extension inside Flask Practice workspace

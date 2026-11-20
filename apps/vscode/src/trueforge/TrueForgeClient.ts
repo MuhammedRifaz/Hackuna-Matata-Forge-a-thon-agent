@@ -190,8 +190,31 @@ export class TrueForgeClient {
 			}
 		}
 
-		if (options.preferredModelId?.trim()) {
-			baseManifest.model = { name: options.preferredModelId.trim() }
+		const availModels = await this.listModels().catch(() => [])
+		const pref = options.preferredModelId?.trim()
+		let validPreferred: TrueForgeApi.Model | undefined
+		if (pref) {
+			const q = pref.toLowerCase()
+			const norm = (s: string) => s.replace(/[^a-z0-9]/g, "")
+			const qNorm = norm(q)
+			validPreferred = availModels.find((m) => {
+				const name = m.name.toLowerCase()
+				const mId = (m.model_id ?? "").toLowerCase()
+				const prov = (m.provider?.name ?? "").toLowerCase()
+				if (name === q || mId === q || `${prov}/${mId}` === q) return true
+				if (norm(name) === qNorm || norm(mId) === qNorm) return true
+				if (qNorm.length > 4 && (norm(name).includes(qNorm) || norm(mId).includes(qNorm) || qNorm.includes(norm(name)))) return true
+				return false
+			})
+		}
+
+		if (validPreferred) {
+			baseManifest.model = { name: validPreferred.name }
+		} else if (!baseManifest.model?.name || !availModels.some((m) => m.name.toLowerCase() === baseManifest.model?.name?.toLowerCase())) {
+			const fallback = availModels[0]
+			if (fallback) {
+				baseManifest.model = { name: fallback.name }
+			}
 		}
 
 		const mcpServerName = options.mcpServerName ?? VSCODE_MCP_SERVER_NAME
