@@ -165,6 +165,29 @@ async function readVscodeTrueForgeSettings(): Promise<{ baseUrl?: string; agentN
  * TrueForge (`localhost:8790` by default) + the extension-hosted WorkspaceMcpServer.
  */
 export class TrueForgeSessionHost implements SdkSessionHost {
+	private static readonly activeHosts = new Set<TrueForgeSessionHost>()
+
+	/**
+	 * Reverts all uncommitted/unaccepted file edits across active hosts.
+	 * Called when a task errors or user clicks "Start New Task" so half-applied edits
+	 * are completely rolled back to normal.
+	 */
+	public static async rollbackActiveSessions(): Promise<void> {
+		for (const host of TrueForgeSessionHost.activeHosts) {
+			try {
+				await host.mcpServer.rollbackSessionEdits()
+			} catch (err) {
+				Logger.warn(`[TrueForgeSessionHost] Error rolling back session edits: ${err}`)
+			}
+		}
+		try {
+			const { PaciorDiffReviewManager } = await import("./PaciorDiffReviewManager")
+			await PaciorDiffReviewManager.getInstance()?.rejectAll()
+		} catch (err) {
+			Logger.warn(`[TrueForgeSessionHost] Error rejecting diff reviews: ${err}`)
+		}
+	}
+
 	private client: TrueForgeClient
 	private readonly mcpServer: WorkspaceMcpServer
 	private readonly listeners = new Set<(event: CoreSessionEvent) => void>()
@@ -177,6 +200,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 	}
 
 	private constructor(private readonly options: TrueForgeSessionHostOptions) {
+		TrueForgeSessionHost.activeHosts.add(this)
 		this.client = new TrueForgeClient({
 			baseUrl: options.baseUrl,
 			apiKey: options.apiKey,
@@ -995,13 +1019,13 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 					session.status = "error"
 					const errObj = new Error(turnErrorMessage)
-					// Only rollback uncommitted edits on user abortion, not on iteration limit/recoverable error so progress is preserved
+					// On user cancellation, immediately rollback session edits.
+					// On unexpected turn error, do NOT commit snapshots: snapshots stay alive
+					// so if the user clicks Retry, execution continues seamlessly,
+					// but if the user clicks "Start New Task", clearTask() rolls back all half-edited edits!
 					const isAbortedByUser = /aborted|cancelled|user request/i.test(turnErrorMessage)
 					if (isAbortedByUser) {
 						await this.mcpServer.rollbackSessionEdits().catch(() => {})
-					} else {
-						// Commit partial progress so retry continues from current state instead of reverting to scratch
-						this.mcpServer.commitSessionEdits()
 					}
 					this.emitAgentEvent(session.clineSessionId, {
 						type: "error",
@@ -1157,6 +1181,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 
 	async dispose(): Promise<void> {
 		this.disposed = true
+		TrueForgeSessionHost.activeHosts.delete(this)
 		for (const session of this.sessions.values()) {
 			session.abortController?.abort()
 		}

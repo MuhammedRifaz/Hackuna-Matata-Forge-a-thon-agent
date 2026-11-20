@@ -1672,6 +1672,10 @@ export class Controller {
 		// A cloud task still provisioning has no SDK session for taskControl to end;
 		// stop it here so it cannot re-install its view after the user left.
 		this.cloud.cancelPendingStart()
+		try {
+			const { TrueForgeSessionHost } = await import("../trueforge/TrueForgeSessionHost")
+			await TrueForgeSessionHost.rollbackActiveSessions()
+		} catch {}
 		await this.taskControl.clearTask()
 		await this.postStateToWebview()
 	}
