@@ -137,16 +137,23 @@ for %%I in ("%~dp0apps\vscode") do set "EXT_DIR=%%~fI"
 
 REM Find VS Code executable (PATH or standard Windows installations)
 set "CODE_CMD="
-where code >nul 2>nul && set "CODE_CMD=code"
-if not defined CODE_CMD if exist "%LOCALAPPDATA%\Programs\Microsoft VS Code\bin\code.cmd" set "CODE_CMD=%LOCALAPPDATA%\Programs\Microsoft VS Code\bin\code.cmd"
+if exist "%LOCALAPPDATA%\Programs\Microsoft VS Code\bin\code.cmd" set "CODE_CMD=%LOCALAPPDATA%\Programs\Microsoft VS Code\bin\code.cmd"
+if not defined CODE_CMD if exist "%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe" set "CODE_CMD=%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe"
 if not defined CODE_CMD if exist "%ProgramFiles%\Microsoft VS Code\bin\code.cmd" set "CODE_CMD=%ProgramFiles%\Microsoft VS Code\bin\code.cmd"
-if not defined CODE_CMD if exist "%ProgramFiles(x86)%\Microsoft VS Code\bin\code.cmd" set "CODE_CMD=%ProgramFiles(x86)%\Microsoft VS Code\bin\code.cmd"
+if not defined CODE_CMD if exist "%ProgramFiles%\Microsoft VS Code\Code.exe" set "CODE_CMD=%ProgramFiles%\Microsoft VS Code\Code.exe"
+if not defined CODE_CMD (
+    for /f "tokens=*" %%I in ('where.exe code.cmd 2^>nul') do set "CODE_CMD=%%I"
+)
+if not defined CODE_CMD (
+    for /f "tokens=*" %%I in ('where.exe code 2^>nul') do set "CODE_CMD=%%I"
+)
 
 if defined CODE_CMD (
     echo [INFO] Opening fresh VS Code window for "%FLASK_DIR%"...
     call "%CODE_CMD%" -n "%FLASK_DIR%" --extensionDevelopmentPath="%EXT_DIR%"
+    echo [SUCCESS] Pacior Code extension launched successfully in Flask Practice!
 ) else (
-    echo [WARNING] VS Code CLI (code) not found in PATH or standard installation directories.
+    echo [WARNING] VS Code CLI code was not found in PATH or standard installation directories.
     echo Please open VS Code, open folder "%FLASK_DIR%", and load extension from "%EXT_DIR%".
 )
 
@@ -155,3 +162,4 @@ echo   [OK] Pacior Code launched in Flask Practice!
 echo   1. Check TrueForge in browser: http://localhost:8790
 echo   2. Check VS Code: Flask Practice workspace is active in sidebar
 echo =================================================================
+pause

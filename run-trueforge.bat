@@ -37,3 +37,4 @@ echo [INFO] Starting TrueForge harness server (port 8790, outbound URLs allowed)
 echo [INFO] Running: npx @truefoundry/trueforge
 start http://localhost:8790
 npx @truefoundry/trueforge
+

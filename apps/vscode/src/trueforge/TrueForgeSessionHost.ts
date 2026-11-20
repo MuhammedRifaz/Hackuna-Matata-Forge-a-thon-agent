@@ -283,8 +283,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			latest.spec.model = { name: candidate.name }
 			latest.spec.config = {
 				...latest.spec.config,
-				iterationLimit: 12,
-				iteration_limit: 12,
+				iterationLimit: 80,
+				iteration_limit: 80,
 				sandbox: {
 					enabled: false,
 					fileDownloads: false,
@@ -450,7 +450,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 				latest.spec.config = {
 					...latest.spec.config,
-					iterationLimit: 25,
+					iterationLimit: 80,
+					iteration_limit: 80,
 					sandbox: { enabled: false, fileDownloads: false },
 					askUserQuestions: { enabled: true },
 					contextManagement: {

@@ -28,7 +28,7 @@
 - 🧠 **TrueForge Native Agent Loop**: All model streaming, SSE events, and session turns run on TrueForge (`http://localhost:8790`).
 - 🛠️ **Full Editor MCP Server**: Exposes `read_files`, `editor`, `write_to_file`, `run_commands`, `list_files`, and `search_files` as standard MCP tools.
 - 🎯 **PACIOR Context Engine (Criterion B1)**: AST structural dependency graph slicing and IDF lexical ranking assembling compact context under strict token budgets.
-- 🗜️ **Automatic Context Compaction (Criterion B2)**: Calibrated at 12,000 tokens to keep prompt size lean and prevent token explosion (~150k–250k total tokens per task).
+- 🗜️ **Automatic Context Compaction (Criterion B2)**: Calibrated at 12,000 tokens to keep prompt size lean and prevent token explosion (~200k–300k total tokens per task).
 - 🛡️ **Dynamic Resilient Model Shifting (Criterion B3 & Task C)**: Automatically detects 429 rate limits or provider failures, shifts to the next available model, preserves all workspace edits, and resumes without restarting from step 0.
 - 🔍 **Antigravity-Style Post-Task Diff Review (Criterion B4)**: Non-blocking autonomous execution with post-task in-editor hunk CodeLenses (`✓Accept | ✕Reject`) and a chat footer review summary.
 
@@ -149,7 +149,7 @@ Click the **Pacior Code** icon in the VS Code Activity Bar (left sidebar) to ope
 │                                                       │                │
 │   ┌──────────────────────────────────────────────┐    │                │
 │   │  Agent Execution Loop (agent.pacior.yaml)    │    │                │
-│   │  - Iteration Limit: 25                       │    │                │
+│   │  - Iteration Limit: 80                       │    │                │
 │   │  - Auto-Compaction: 12,000 tokens            │    │                │
 │   │  - Outbound URLs: ALLOWED                    │    │                │
 │   │  - Dynamic Fallback Routing                  │    │                │
