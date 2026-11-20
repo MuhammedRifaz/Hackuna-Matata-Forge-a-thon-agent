@@ -96,6 +96,44 @@ export async function activate(context: vscode.ExtensionContext) {
 		})
 	}
 
+	// Auto-provision or synchronize TrueForge Pacior Agent & Workspace MCP connector in TrueForge UI
+	import("./trueforge/TrueForgeClient").then(({ TrueForgeClient }) => {
+		const tfClient = new TrueForgeClient()
+		tfClient.listAgents().then(async (agents) => {
+			const pacior = agents.find((a) => a.name.toLowerCase() === "pacior")
+			const preferredModel = (await tfClient.listModels().catch(() => []))[0]?.name ?? "gemini/gemini-3-5-flash-lite"
+			const manifest = {
+				model: { name: preferredModel },
+				instructions: "You are Pacior, an autonomous software engineering agent for VS Code. Follow instructions carefully, write clean minimal code, and verify with tests.",
+				config: {
+					iteration_limit: 25,
+					sandbox: { enabled: false, file_downloads: false },
+					dynamic_sub_agents: { enabled: true },
+					context_management: {
+						compaction: { enabled: true, trigger: { type: "input_tokens", value: 18000 } },
+						large_tool_response: { enabled: true },
+					},
+					generative_ui: { enabled: false },
+					ask_user_questions: { enabled: false },
+					web_search: { enabled: false },
+					memory: { enabled: false },
+				},
+			}
+			if (pacior) {
+				await (tfClient as any).sdk.agents.update(pacior.id, { manifest }).catch(() => {})
+			} else {
+				await (tfClient as any).sdk.agents.create({
+					name: "pacior",
+					description: "Autonomous software engineering agent for VS Code",
+					manifest,
+				}).catch(() => {})
+			}
+			Logger.log("[TrueForge] Auto-provisioned Pacior agent in TrueForge harness UI.")
+		}).catch((tfErr) => {
+			Logger.log(`[TrueForge] Agent provisioning notice: ${tfErr.message}`)
+		})
+	})
+
 	// 4. Register services and perform common initialization
 	// IMPORTANT: Must be done after host provider is setup and migrations are complete
 	const webview = (await initialize(storageContext)) as VscodeWebviewProvider

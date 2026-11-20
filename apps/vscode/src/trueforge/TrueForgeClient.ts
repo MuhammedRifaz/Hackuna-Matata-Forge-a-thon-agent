@@ -246,8 +246,8 @@ export class TrueForgeClient {
 					},
 					generative_ui: { enabled: false },
 					generativeUi: { enabled: false },
-					ask_user_questions: { enabled: true },
-					askUserQuestions: { enabled: true },
+					ask_user_questions: { enabled: false },
+					askUserQuestions: { enabled: false },
 					context_management: {
 						compaction: {
 							enabled: true,

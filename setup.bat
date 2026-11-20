@@ -125,11 +125,15 @@ if %errorlevel% neq 0 (
     echo [SUCCESS] TrueForge harness is already running on http://localhost:8790.
 )
 
-REM 6. Open TrueForge web UI in browser
+REM 6. Synchronize Pacior Agent and Configuration into TrueForge
+echo [INFO] Provisioning Pacior agent configuration in TrueForge...
+node "%~dp0scripts\provision-trueforge.js"
+
+REM 7. Open TrueForge web UI in browser
 echo [INFO] Opening TrueForge web dashboard at http://localhost:8790 ...
 start http://localhost:8790
 
-REM 7. Launch VS Code with Pacior Code extension inside Flask Practice workspace
+REM 8. Launch VS Code with Pacior Code extension inside Flask Practice workspace
 echo [INFO] Launching VS Code with Pacior Code extension in "%FLASK_DIR%"...
 
 set "EXT_DIR="

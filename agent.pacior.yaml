@@ -15,9 +15,9 @@ model:
   temperature: 0.0
 
 config:
-  iterationLimit: 80
+  iterationLimit: 25
   askUserQuestions:
-    enabled: true
+    enabled: false
   sandbox:
     enabled: false
     fileDownloads: false

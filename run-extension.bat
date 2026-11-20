@@ -54,7 +54,13 @@ if "!NEED_BUILD!"=="1" (
     cd /d "%~dp0"
 )
 
-REM 4. Launch VS Code with Pacior Code extension inside Flask Practice workspace
+REM 4. Provision / sync Pacior Agent with TrueForge if running
+curl -s -m 2 http://localhost:8790 >nul 2>nul
+if !errorlevel! equ 0 (
+    node "%~dp0scripts\provision-trueforge.js" >nul 2>nul
+)
+
+REM 5. Launch VS Code with Pacior Code extension inside Flask Practice workspace
 set "EXT_DIR="
 for %%I in ("%~dp0apps\vscode") do set "EXT_DIR=%%~fI"
 

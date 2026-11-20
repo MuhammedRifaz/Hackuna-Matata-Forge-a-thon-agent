@@ -25,6 +25,8 @@ REM 3. Check if server is already running on port 8790
 curl -s -m 2 http://localhost:8790 >nul 2>nul
 if %errorlevel% equ 0 (
     echo [SUCCESS] TrueForge server is already active on http://localhost:8790.
+    echo [INFO] Provisioning Pacior agent configuration in TrueForge...
+    node "%~dp0scripts\provision-trueforge.js"
     echo [INFO] Opening dashboard in browser...
     start http://localhost:8790
     echo TrueForge is ready.
