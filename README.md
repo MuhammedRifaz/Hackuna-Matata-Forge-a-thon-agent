@@ -63,19 +63,14 @@ You can evaluate Pacior Code on any clean machine (Windows, macOS, Linux) in min
 
 Clone the repository and run the automated evaluator launcher:
 
-#### On Windows (PowerShell):
-```powershell
+#### On Windows (CMD / Double-Click):
+```cmd
 git clone https://github.com/MuhammedRifaz/IIT-Bombay-Forge-a-thon.git TrueForge
 cd TrueForge
-.\start.ps1
-```
-
-#### On Windows (Command Prompt):
-```cmd
 setup.bat
 ```
 
-#### On Linux / macOS:
+#### On Linux / macOS (Bash):
 ```bash
 git clone https://github.com/MuhammedRifaz/IIT-Bombay-Forge-a-thon.git TrueForge
 cd TrueForge
@@ -84,11 +79,12 @@ chmod +x start.sh
 ```
 
 **What the turnkey script does automatically:**
-1. Checks and verifies Node.js, Bun, and Python.
-2. Installs monorepo dependencies (`bun install`).
-3. Compiles SDK packages and builds the extension + webview bundles.
-4. Checks if TrueForge is running; if not, automatically launches `npx @truefoundry/trueforge` in the background.
-5. Launches VS Code with the extension loaded into the evaluation workspace.
+1. Checks and verifies Node.js (≥22), Bun, and Python.
+2. Clones the evaluation workspace [`pallets/flask`](https://github.com/pallets/flask) (pinned at v3.1.3) into the parallel directory `../Flask Practice` if not already present.
+3. Installs monorepo dependencies (`bun install`) and compiles SDK packages (`bun run build:sdk`).
+4. Builds the Vite React Webview (`apps/vscode/webview-ui`) and bundles the extension with esbuild (`apps/vscode/dist/extension.js`).
+5. Checks if TrueForge is running; if not, automatically launches `npx @truefoundry/trueforge` in the background and opens **`http://localhost:8790`** in your default browser.
+6. Launches VS Code with Pacior Code preloaded directly inside the `Flask Practice` workspace.
 
 ---
 

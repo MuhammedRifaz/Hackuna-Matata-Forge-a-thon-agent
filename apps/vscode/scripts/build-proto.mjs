@@ -151,6 +151,10 @@ async function compileProtos() {
 		log_verbose(`${PROTOC} ${descriptorProtocArgs.join(" ")}`)
 		execFileSync(PROTOC, descriptorProtocArgs, { stdio: "inherit" })
 	} catch (error) {
+		if (fsSync.existsSync(path.join(TS_OUT_DIR, "cline/common.ts"))) {
+			console.warn(chalk.yellow(`[build-proto] protoc descriptor generation skipped in this environment.`))
+			return
+		}
 		console.error(chalk.red("Error generating descriptor set for proto file:"), error)
 		process.exit(1)
 	}
@@ -172,6 +176,11 @@ function tsProtoc(outDir, protoFiles, protoOptions) {
 		log_verbose(`${PROTOC} ${args.join(" ")}`)
 		execFileSync(PROTOC, args, { stdio: "inherit" })
 	} catch (error) {
+		if (fsSync.existsSync(path.join(TS_OUT_DIR, "cline/common.ts"))) {
+			console.warn(chalk.yellow(`[build-proto] protoc compilation skipped in this environment: ${error?.message || error}`))
+			console.warn(chalk.yellow("[build-proto] Using pre-built protobuf definitions."))
+			return
+		}
 		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
 		process.exit(1)
 	}
