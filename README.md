@@ -65,14 +65,14 @@ Clone the repository and run the automated evaluator launcher:
 
 #### On Windows (CMD / Double-Click):
 ```cmd
-git clone https://github.com/MuhammedRifaz/IIT-Bombay-Forge-a-thon.git TrueForge
+git clone https://github.com/MuhammedRifaz/Pacior-Code-Forge-a-thon-agent.git TrueForge
 cd TrueForge
 setup.bat
 ```
 
 #### On Linux / macOS (Bash):
 ```bash
-git clone https://github.com/MuhammedRifaz/IIT-Bombay-Forge-a-thon.git TrueForge
+git clone https://github.com/MuhammedRifaz/Pacior-Code-Forge-a-thon-agent.git TrueForge
 cd TrueForge
 chmod +x start.sh
 ./start.sh
