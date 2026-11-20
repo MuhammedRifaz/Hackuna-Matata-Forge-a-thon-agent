@@ -205,13 +205,12 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 	private getEffectiveApprovalTools(): string[] {
 		try {
 			const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
-			if (autoApprovalSettings?.enabled === false) {
-				return DEFAULT_APPROVAL_TOOLS.filter((tool) => !isToolAutoApproved(tool, autoApprovalSettings))
+			if (!autoApprovalSettings) {
+				return DEFAULT_APPROVAL_TOOLS
 			}
-			// By default in autonomous Pacior agent mode, auto-approve editor & safe commands
-			return []
+			return DEFAULT_APPROVAL_TOOLS.filter((tool) => !isToolAutoApproved(tool, autoApprovalSettings))
 		} catch {
-			return []
+			return DEFAULT_APPROVAL_TOOLS
 		}
 	}
 
@@ -284,8 +283,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			latest.spec.model = { name: candidate.name }
 			latest.spec.config = {
 				...latest.spec.config,
-				iterationLimit: 80,
-				iteration_limit: 80,
+				iterationLimit: 25,
 				sandbox: {
 					enabled: false,
 					fileDownloads: false,
@@ -451,8 +449,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				}
 				latest.spec.config = {
 					...latest.spec.config,
-					iterationLimit: 80,
-				iteration_limit: 80,
+					iterationLimit: 25,
 					sandbox: {
 						enabled: false,
 						fileDownloads: false,
@@ -980,7 +977,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					if (isIterationLimit && !turnCancelled) {
 						const count = (session.continuationCount || 0) + 1
 						session.continuationCount = count
-						if (count <= 3) {
+						if (count <= 1) {
 							Logger.log(`[TrueForgeSessionHost] Iteration boundary reached in turn ${currentTurnId}. Seamlessly continuing into turn ${count + 1}...`)
 							this.emitAgentEvent(session.clineSessionId, {
 								type: "notice",

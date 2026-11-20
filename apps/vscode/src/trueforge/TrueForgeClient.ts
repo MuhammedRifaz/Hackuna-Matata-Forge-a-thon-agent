@@ -245,8 +245,8 @@ export class TrueForgeClient {
 				mcp_servers: [...existingMcpServers, workspaceMcpEntry] as any,
 				config: {
 					...baseManifest.config,
-					iteration_limit: 80,
-					iterationLimit: 80,
+					iteration_limit: 25,
+					iterationLimit: 25,
 					dynamic_sub_agents: { enabled: true },
 					dynamicSubAgents: { enabled: true },
 					sandbox: {
