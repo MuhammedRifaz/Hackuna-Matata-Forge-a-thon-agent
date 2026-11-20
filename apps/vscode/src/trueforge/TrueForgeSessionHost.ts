@@ -308,6 +308,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 			latest.spec.config = {
 				...latest.spec.config,
 				iterationLimit: 25,
+				dynamicSubAgents: { enabled: false },
+				dynamic_sub_agents: { enabled: false },
 				sandbox: {
 					enabled: false,
 					fileDownloads: false,
@@ -325,11 +327,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 					largeToolResponse: { enabled: true },
 				},
 			}
-			const targetAgent = await this.client.findAgentByName(session.agentName || "pacior")
-			if (targetAgent) {
-				await this.client.updateAgentManifest(targetAgent.id, latest.spec).catch(() => {})
-			}
-			await this.client.updateSessionAgent(session.tfSessionId, latest.spec).catch(() => {})
+			await this.client.updateSessionAgent(session.tfSessionId, latest.spec)
 			session.modelId = candidate.name
 
 			// Emit EXACTLY ONE notice message so the UI renders a single yellow card with zero duplicates
@@ -379,7 +377,7 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				requireApprovalForTools: this.getEffectiveApprovalTools(),
 				preferredModelId: modelIdFromConfig && modelIdFromConfig !== "trueforge" ? modelIdFromConfig : undefined,
 			})
-			const tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`, resolved.name)
+			const tfSession = await this.client.createSession(resolved.spec, `Cline VSCode (${path.basename(cwd)})`)
 
 			const modelId = resolved.spec.model?.name ?? normalized.config.modelId ?? "trueforge"
 			const now = new Date().toISOString()
@@ -470,6 +468,8 @@ export class TrueForgeSessionHost implements SdkSessionHost {
 				latest.spec.config = {
 					...latest.spec.config,
 					iterationLimit: 25,
+					dynamicSubAgents: { enabled: false },
+					dynamic_sub_agents: { enabled: false },
 					sandbox: {
 						enabled: false,
 						fileDownloads: false,

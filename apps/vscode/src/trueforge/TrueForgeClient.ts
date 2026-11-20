@@ -231,7 +231,7 @@ export class TrueForgeClient {
 			"2. EDIT SURGICALLY VIA `editor`: Propose all edits via `editor` (`path`, exact `old_text`, `new_text`). Include 2-3 lines of surrounding context in `old_text` to guarantee exact match. Never leave placeholder tags (like `</>`), syntax errors, or duplicate code. Never edit files via shell or create temporary debug/verification scripts (e.g., `debug_*.py`, `verify_*.py`).",
 			"3. PRE-CONFIGURED RUNTIME: Project dependencies and test runners are pre-installed. Never create `.venv` or run `pip`/`uv`/`npm install`.",
 			"4. SINGLE TEST VERIFICATION & IMMEDIATE FINISH: When verifying changes, run the single targeted pytest command ONCE via `run_commands` (e.g., `python -m pytest <file> -k <test> -q`). Never run `python -c` one-liners (they break on Windows shell quoting). The moment exit 0 is confirmed, you are 100% DONE: NEVER run the test a second time, NEVER re-run help or redundant verification commands, and NEVER re-read files you already edited. Conclude IMMEDIATELY with a concise summary.",
-			"5. AUTONOMY & SUBAGENTS: Proceed directly when the task is clear (only call `ask_user_question` if requirements are genuinely ambiguous). Delegate broad multi-file exploration to `create_sub_agent` to keep main context lean.",
+			"5. DIRECT AUTONOMY: Proceed directly with workspace tools. Never spawn subagents or delegate tasks.",
 			"6. ACCURATE ERROR DIAGNOSIS: If pytest reports an error, inspect the bottom-most line of the traceback for the true root cause (e.g., SyntaxError in source code). NEVER modify test harness files (such as `conftest.py`) or remove fixtures to mask source syntax errors.",
 			"7. POST-COMPACTION DISCIPLINE: When TrueForge compacts context (`thread.context_compaction_finished`), all prior code edits remain fully active in the workspace. Never repeat discovery, never re-read files, and never call `list_tools` again. Proceed directly to verification or conclude immediately.",
 		]
@@ -250,8 +250,8 @@ export class TrueForgeClient {
 					...baseManifest.config,
 					iteration_limit: 25,
 					iterationLimit: 25,
-					dynamic_sub_agents: { enabled: true },
-					dynamicSubAgents: { enabled: true },
+					dynamic_sub_agents: { enabled: false },
+					dynamicSubAgents: { enabled: false },
 					sandbox: {
 						enabled: false,
 						file_downloads: false,
@@ -286,52 +286,17 @@ export class TrueForgeClient {
 		}
 	}
 
-	async findAgentByName(name: string): Promise<TrueForgeApi.Agent | undefined> {
-		const agents = await this.listAgents().catch(() => [])
-		return agents.find((a) => a.name.toLowerCase() === name.toLowerCase())
-	}
-
-	async updateAgentManifest(agentId: string, manifest: TrueForgeApi.AgentSpec): Promise<void> {
-		await this.sdk.agents.update(agentId, { manifest }, { timeoutInSeconds: 10, maxRetries: 0 })
-	}
-
-	async createSession(agentSpec: TrueForgeApi.AgentSpec, title?: string, agentName?: string): Promise<TrueForgeApi.Session> {
-		const targetAgentName = agentName?.trim() || this.agentName
-		let sessionData: TrueForgeApi.Session | undefined
-
-		// Attempt named registry binding first so TrueForge dashboard Displays "pacior" under Sessions
-		if (targetAgentName) {
-			try {
-				const existingAgent = await this.findAgentByName(targetAgentName)
-				if (existingAgent) {
-					await this.updateAgentManifest(existingAgent.id, agentSpec).catch(() => {})
-				}
-				const res = await this.sdk.sessions.create(
-					{
-						agent: { name: targetAgentName },
-					},
-					{ timeoutInSeconds: 15, maxRetries: 0 },
-				)
-				sessionData = res.data
-			} catch (err) {
-				Logger.warn(`[TrueForgeClient] Could not create named session for "${targetAgentName}", falling back to inline: ${err}`)
-			}
+	async createSession(agentSpec: TrueForgeApi.AgentSpec, title?: string): Promise<TrueForgeApi.Session> {
+		const res = await this.sdk.sessions.create(
+			{
+				agent: { spec: agentSpec },
+			},
+			{ timeoutInSeconds: 15, maxRetries: 0 },
+		)
+		if (title) {
+			await this.sdk.sessions.update(res.data.id, { title }, { timeoutInSeconds: 10, maxRetries: 0 }).catch(() => {})
 		}
-
-		if (!sessionData) {
-			const res = await this.sdk.sessions.create(
-				{
-					agent: { spec: agentSpec },
-				},
-				{ timeoutInSeconds: 15, maxRetries: 0 },
-			)
-			sessionData = res.data
-		}
-
-		if (title && sessionData) {
-			await this.sdk.sessions.update(sessionData.id, { title }, { timeoutInSeconds: 10, maxRetries: 0 }).catch(() => {})
-		}
-		return sessionData
+		return res.data
 	}
 
 	async updateSessionAgent(sessionId: string, agentSpec: TrueForgeApi.AgentSpec): Promise<void> {

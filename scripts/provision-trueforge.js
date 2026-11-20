@@ -36,7 +36,7 @@ async function main() {
 					file_downloads: false,
 				},
 				dynamic_sub_agents: {
-					enabled: true,
+					enabled: false,
 				},
 				context_management: {
 					compaction: {
