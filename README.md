@@ -28,7 +28,7 @@
 - 🧠 **TrueForge Native Agent Loop**: All model streaming, SSE events, and session turns run on TrueForge (`http://localhost:8790`).
 - 🛠️ **Full Editor MCP Server**: Exposes `read_files`, `editor`, `write_to_file`, `run_commands`, `list_files`, and `search_files` as standard MCP tools.
 - 🎯 **PACIOR Context Engine (Criterion B1)**: AST structural dependency graph slicing and IDF lexical ranking assembling compact context under strict token budgets.
-- 🗜️ **Automatic Context Compaction (Criterion B2)**: Calibrated at 12,000 tokens to keep prompt size lean and prevent token explosion (~200k–300k total tokens per task).
+- 🗜️ **Automatic Context Compaction (Criterion B2)**: Calibrated at 18,000 tokens to keep prompt size lean and prevent token explosion (~200k–300k total tokens per task).
 - 🛡️ **Dynamic Resilient Model Shifting (Criterion B3 & Task C)**: Automatically detects 429 rate limits or provider failures, shifts to the next available model, preserves all workspace edits, and resumes without restarting from step 0.
 - 🔍 **Antigravity-Style Post-Task Diff Review (Criterion B4)**: Non-blocking autonomous execution with post-task in-editor hunk CodeLenses (`✓Accept | ✕Reject`) and a chat footer review summary.
 
@@ -62,7 +62,7 @@ You can evaluate Pacior Code on any clean machine (Windows, macOS, Linux) in min
 ### Option A: Automated Evaluator Launchers (Windows CMD / Turnkey)
 
 We provide dedicated standalone `.bat` scripts tailored for evaluation on any Windows machine:
-
+First, clone the repository and open CMD inside the cloned folder.
 1. **Turnkey Launcher (Extension + TrueForge Server)**:
    ```cmd
    setup.bat
@@ -218,13 +218,6 @@ All model access is routed through TrueForge via user-supplied credentials.
 3. **Example YAML Reference**:
    - See [`models.config.example.yaml`](./models.config.example.yaml) for full schema and model specifications.
 
-### How Model Failover Works:
-If the active model encounters a `429 Rate Limit`, quota exhaustion, or stream failure:
-1. TrueForge catches the error in `TrueForgeSessionHost.ts`.
-2. A single **⚠️ Model Shift** alert is surfaced in the UI.
-3. The session commits all workspace edits so far.
-4. A 5-second rate-cooldown window elapses.
-5. The session automatically shifts to the next available configured model (e.g. Gemini $\to$ OpenRouter $\to$ OpenAI) with a targeted continuation prompt—**without restarting the task from step 0**.
 
 ---
 
@@ -232,13 +225,13 @@ If the active model encounters a `429 Rate Limit`, quota exhaustion, or stream f
 
 | Criterion | Requirement | Implementation & Claim |
 | :--- | :--- | :--- |
-| **Task A (Agent Loop on TrueForge)** | All model turns run through TrueForge with human-in-the-loop approvals. | `TrueForgeSessionHost.ts` executes every prompt turn on TrueForge (`http://localhost:8790`). `tool.approval_required` pauses execution for human approval when auto-approval is toggled OFF. |
-| **Task B1 (Context Engine)** | Smart context selection with explainability within strict budget. | `PaciorContextEngine.ts` uses AST parsing and IDF ranking to assemble relevant slices within a 900-token budget. Displays an AST card in chat showing which files were selected and why. |
-| **Task B2 (Context Compaction)** | Automatic context compaction to keep prompt size lean. | Configured via `contextManagement.compaction` in `agent.pacior.yaml` triggered at 18,000 tokens. Emits a blue compaction card and restricts task token usage to ~200k–300k. |
-| **Task B3 (Resilient Failover)** | Resilient error recovery and dynamic model switching. | `shiftToNextAvailableModel()` seamlessly shifts across configured models upon 429 or provider errors without restarting from scratch or duplicating UI cards. |
-| **Task B4 (Diff Review)** | Review changes after task completion. | `PaciorDiffReviewManager.ts` provides post-task in-editor hunk CodeLenses (`✓Accept \| ✕Reject`) and a chat footer review summary with per-row and accept-all controls. |
-| **Task C (Fault Tolerance)** | Seamless execution across network/rate hiccups. | Paced MCP tool executions (1,200ms delay) eliminate rapid RPM spikes; continuation protocol guarantees zero loss of completed edits. |
-
+| **Task A1 (Inline Edit)** | All model turns run through TrueForge with human-in-the-loop approvals. | `TrueForgeSessionHost.ts` executes every prompt turn on TrueForge (`http://localhost:8790`). `tool.approval_required` pauses execution for human approval when auto-approval is toggled OFF. |
+| **Task A2 (Agent Mode)** | Smart context selection with explainability within strict budget. | `PaciorContextEngine.ts` uses AST parsing and IDF ranking to assemble relevant slices within a 900-token budget. Displays an AST card in chat showing which files were selected and why. |
+| **Task A3 (Streaming and Cancellation)** | Automatic context compaction to keep prompt size lean. | Configured via `contextManagement.compaction` in `agent.pacior.yaml` triggered at 18,000 tokens. Emits a blue compaction card and restricts task token usage to ~200k–300k. |
+| **Task B1 (Context Assembly)** | Resilient error recovery and dynamic model switching. | `shiftToNextAvailableModel()` seamlessly shifts across configured models upon 429 or provider errors without restarting from scratch or duplicating UI cards. |
+| **Task B2 (Diff Safety)** | Review changes after task completion. | `PaciorDiffReviewManager.ts` provides post-task in-editor hunk CodeLenses (`✓Accept \| ✕Reject`) and a chat footer review summary with per-row and accept-all controls. |
+| **Task B3 (Resillience)** | Seamless execution across network/rate hiccups. | Paced MCP tool executions (1,200ms delay) eliminate rapid RPM spikes; continuation protocol guarantees zero loss of completed edits. |
+| **Task B4 (TrueForge Integration Depth)** | Sessions run on the local TrueForge daemon with nine MCP tools,human-approved calls, deferred loading and visible compaction. |
 ---
 
 ## 👥 Team — Hackuna Matata
