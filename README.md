@@ -225,15 +225,16 @@ All model access is routed through TrueForge via user-supplied credentials.
 
 | Criterion | Requirement | Implementation & Claim |
 | :--- | :--- | :--- |
-| **Task A1 (Inline Edit)** | All model turns run through TrueForge with human-in-the-loop approvals. | `TrueForgeSessionHost.ts` executes every prompt turn on TrueForge (`http://localhost:8790`). `tool.approval_required` pauses execution for human approval when auto-approval is toggled OFF. |
-| **Task A2 (Agent Mode)** | Smart context selection with explainability within strict budget. | `PaciorContextEngine.ts` uses AST parsing and IDF ranking to assemble relevant slices within a 900-token budget. Displays an AST card in chat showing which files were selected and why. |
-| **Task A3 (Streaming and Cancellation)** | Automatic context compaction to keep prompt size lean. | Configured via `contextManagement.compaction` in `agent.pacior.yaml` triggered at 18,000 tokens. Emits a blue compaction card and restricts task token usage to ~200k–300k. |
-| **Task B1 (Context Assembly)** | Resilient error recovery and dynamic model switching. | `shiftToNextAvailableModel()` seamlessly shifts across configured models upon 429 or provider errors without restarting from scratch or duplicating UI cards. |
-| **Task B2 (Diff Safety)** | Review changes after task completion. | `PaciorDiffReviewManager.ts` provides post-task in-editor hunk CodeLenses (`✓Accept \| ✕Reject`) and a chat footer review summary with per-row and accept-all controls. |
-| **Task B3 (Resillience)** | Seamless execution across network/rate hiccups. | Paced MCP tool executions (1,200ms delay) eliminate rapid RPM spikes; continuation protocol guarantees zero loss of completed edits. |
-| **Task B4 (TrueForge Integration Depth)** | Sessions run on the local TrueForge daemon with nine MCP tools,human-approved calls, deferred loading and visible compaction. |
----
+| **Criterion A1 (Inline Edit)** | All model turns run through TrueForge with human-in-the-loop approvals. | `TrueForgeSessionHost.ts` executes every prompt turn on TrueForge (`http://localhost:8790`). `tool.approval_required` pauses execution for human approval when auto-approval is toggled OFF. |
+| **Criterion A2 (Agent Mode)** | Smart context selection with explainability within strict budget. | `PaciorContextEngine.ts` uses AST parsing and IDF ranking to assemble relevant slices within a 900-token budget. Displays an AST card in chat showing which files were selected and why. |
+| **Criterion A3 (Streaming and Cancellation)** | Automatic context compaction to keep prompt size lean. | Configured via `contextManagement.compaction` in `agent.pacior.yaml` triggered at 18,000 tokens. Emits a blue compaction card and restricts task token usage to ~200k–300k. |
+| **Criterion B1 (Context Assembly)** | Resilient error recovery and dynamic model switching. | `shiftToNextAvailableModel()` seamlessly shifts across configured models upon 429 or provider errors without restarting from scratch or duplicating UI cards. |
+| **Criterion B2 (Diff Safety)** | Review changes after task completion. | `PaciorDiffReviewManager.ts` provides post-task in-editor hunk CodeLenses (`✓Accept \| ✕Reject`) and a chat footer review summary with per-row and accept-all controls. |
+| **Criterion B3 (Resillience)** | Seamless execution across network/rate hiccups. | Paced MCP tool executions (1,200ms delay) eliminate rapid RPM spikes; continuation protocol guarantees zero loss of completed edits. |
+| **Criterion B4 (TrueForge Integration Depth)** | Sessions run on the local TrueForge daemon with nine MCP tools,human-approved calls, deferred loading and visible compaction. |
+| **Criterion C1 (Video)** | https://youtu.be/08m6h5bHbS0?is=rmNmpkpnni00zo_e |
 
+---
 ## 👥 Team — Hackuna Matata
 
 | Member | Email | GitHub Handle |
