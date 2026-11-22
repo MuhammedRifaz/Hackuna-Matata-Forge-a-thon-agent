@@ -232,7 +232,8 @@ All model access is routed through TrueForge via user-supplied credentials.
 | **Criterion B2 (Diff Safety)** | Review changes after task completion. | `PaciorDiffReviewManager.ts` provides post-task in-editor hunk CodeLenses (`✓Accept \| ✕Reject`) and a chat footer review summary with per-row and accept-all controls. |
 | **Criterion B3 (Resillience)** | Seamless execution across network/rate hiccups. | Paced MCP tool executions (1,200ms delay) eliminate rapid RPM spikes; continuation protocol guarantees zero loss of completed edits. |
 | **Criterion B4 (TrueForge Integration Depth)** | Sessions run on the local TrueForge daemon with nine MCP tools,human-approved calls, deferred loading and visible compaction. |
-| **Criterion C1 (Video)** | https://youtu.be/08m6h5bHbS0?is=rmNmpkpnni00zo_e |
+| **Criterion C1 (Video - 03:56)** | https://youtu.be/08m6h5bHbS0?is=rmNmpkpnni00zo_e |
+| **Criterion C2 (Write Up PDF 3 Pages)** | https://drive.google.com/file/d/1TPpWoX0aznPkzo8twnTXxYzeMkeFqbFo/view?usp=sharing |
 
 ---
 ## 👥 Team — Hackuna Matata
